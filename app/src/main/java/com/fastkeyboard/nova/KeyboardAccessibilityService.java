@@ -114,13 +114,18 @@ public class KeyboardAccessibilityService extends AccessibilityService {
             }
         }
         if (composer.width() > 80 && composer.height() > 20) {
-            float x = composer.left + Math.max(22, Math.min(52, composer.height() * 0.60f));
-            float y = composer.bottom - Math.max(18, Math.min(44, composer.height() * 0.35f));
+            // Attachment controls in WebView-based composers are commonly just
+            // inside the lower-left edge of the composer. Do not tap to the
+            // left of the composer (that can miss the site's own button).
+            float x = composer.left + Math.max(20, Math.min(46, composer.height() * 0.55f));
+            float y = composer.bottom - Math.max(18, Math.min(40, composer.height() * 0.32f));
             boolean tapped = tapScreenPoint(x, y);
             if (tapped) {
-                handler.postDelayed(this::clickFileMenuItem, 350);
-                handler.postDelayed(this::clickFileMenuItem, 800);
-                handler.postDelayed(this::clickFileMenuItem, 1200);
+                handler.postDelayed(() -> tapScreenPoint(x + 18, y), 180);
+                handler.postDelayed(this::clickFileMenuItem, 300);
+                handler.postDelayed(this::clickFileMenuItem, 650);
+                handler.postDelayed(this::clickFileMenuItem, 1000);
+                handler.postDelayed(this::clickFileMenuItem, 1400);
             }
             return tapped;
         }
@@ -237,9 +242,14 @@ public class KeyboardAccessibilityService extends AccessibilityService {
         if(clickChild!=null){boolean ok=performClick(clickChild);try{clickChild.recycle();}catch(Exception ignored){}if(ok)return true;}
 
         if(composer.width()>40&&composer.height()>20){
-            float x=composer.right-Math.max(28,Math.min(56,composer.height()*0.55f));
-            float y=composer.bottom-Math.max(18,Math.min(44,composer.height()*0.35f));
-            return tapScreenPoint(x,y);
+            float x=composer.right-Math.max(26,Math.min(58,composer.height()*0.60f));
+            float y=composer.bottom-Math.max(18,Math.min(42,composer.height()*0.34f));
+            boolean tapped=tapScreenPoint(x,y);
+            if(tapped){
+                handler.postDelayed(() -> tapScreenPoint(x-18,y),180);
+                handler.postDelayed(() -> tapScreenPoint(x,y-18),360);
+            }
+            return tapped;
         }
         return false;
     }

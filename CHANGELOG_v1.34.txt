@@ -1,0 +1,7 @@
+FastKeyboard_NOVA v1.34
+
+- اصلاح مسیر واقعی دکمه فایل: لمس داخل گوشه پایین-چپ composer به جای خارج از آن.
+- چند تلاش کوتاه برای باز کردن منوی فایل سایت و انتخاب Add files.
+- تقویت تشخیص Attach/Paperclip و Send prompt/Send message.
+- چند تلاش کوتاه برای لمس Send در گوشه پایین-راست composer.
+- فایل‌پیکر عمومی Android اجرا نمی‌شود.

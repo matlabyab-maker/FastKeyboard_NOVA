@@ -1,0 +1,7 @@
+FastKeyboard_NOVA v1.35
+
+- Point Zoom now explicitly activates and refreshes the pointer-centered magnifier, with a more useful crop around the cursor.
+- Added a bottom-right resize grip to the mouse window.
+- Symbol/Arabic-mark popup buttons no longer commit text when the first touch is used to scroll; movement cancels the click.
+- Repeatable symbol keys cancel their repeat/commit when the finger moves as part of scrolling.
+- Existing mouse appearance and keyboard layout preserved.

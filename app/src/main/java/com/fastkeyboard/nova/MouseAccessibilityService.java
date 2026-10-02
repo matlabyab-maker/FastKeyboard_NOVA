@@ -146,6 +146,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         final View moveDown = transparentHit(panel, 394, 210, 87, 77, hitViews);
         final View pointZoom = transparentHit(panel, 481, 210, 82, 77, hitViews);
         final View resize = transparentHit(panel, 0, 0, 70, 45, hitViews);
+        final View resizeBottomRight = transparentHit(panel, 600, 250, 39, 37, hitViews);
 
         // Reposition hit areas whenever the panel size changes, preserving the exact
         // proportions of the supplied image on different displays.
@@ -161,6 +162,7 @@ public class MouseAccessibilityService extends AccessibilityService {
             setHit(panel, moveDown, 394,210,87,77,w,h);
             setHit(panel, pointZoom, 481,210,82,77,w,h);
             setHit(panel, resize, 0,0,70,45,w,h);
+            setHit(panel, resizeBottomRight, 600,250,39,37,w,h);
         });
 
         close.setOnClickListener(v -> hideMouseOverlay());
@@ -215,7 +217,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         moveDown.setOnClickListener(v -> moveRelative(0, arrowStep));
 
         // "Point Zoom" magnifies only the screen area immediately under the mouse pointer.
-        pointZoom.setOnClickListener(v -> toggleMagnifier());
+        pointZoom.setOnClickListener(v -> { magnifierEnabled = true; updateMagnifier(); handler.postDelayed(this::updateMagnifier, 180); });
 
         // One functional resize grip at the same top-left location shown in the image.
         final float[] resizeLast = {0f,0f};
@@ -232,6 +234,26 @@ public class MouseAccessibilityService extends AccessibilityService {
                 int nh=Math.max(dp(132),Math.round(nw*imageH/(float)imageW));
                 mousePanelLp.width=nw; mousePanelLp.height=nh;
                 try { wm.updateViewLayout(mousePanel,mousePanelLp); } catch(Exception ignored) {}
+                return true;
+            }
+            return true;
+        });
+        // Bottom-right resize grip: drag outward/inward to resize the whole mouse window.
+        final float[] brLast = {0f,0f};
+        final int[] brBase = {panelW,panelH};
+        resizeBottomRight.setOnTouchListener((v,e)->{
+            if (e.getAction()==MotionEvent.ACTION_DOWN) {
+                brLast[0]=e.getRawX(); brLast[1]=e.getRawY();
+                brBase[0]=mousePanelLp != null ? mousePanelLp.width : panelW;
+                brBase[1]=mousePanelLp != null ? mousePanelLp.height : panelH;
+                return true;
+            }
+            if (e.getAction()==MotionEvent.ACTION_MOVE && mousePanelLp != null && wm != null) {
+                int nw=Math.max(dp(200),Math.min(screenW-dp(8),brBase[0]+Math.round(e.getRawX()-brLast[0])));
+                int nh=Math.max(dp(132),Math.min(screenH-dp(8),brBase[1]+Math.round(e.getRawY()-brLast[1])));
+                mousePanelLp.width=nw; mousePanelLp.height=nh;
+                try { wm.updateViewLayout(mousePanel,mousePanelLp); } catch(Exception ignored) {}
+                brLast[0]=e.getRawX(); brLast[1]=e.getRawY();
                 return true;
             }
             return true;
@@ -326,7 +348,7 @@ public class MouseAccessibilityService extends AccessibilityService {
                         if(hw!=null){source=hw.copy(Bitmap.Config.ARGB_8888,false);hw.recycle();}
                     }
                     if(source==null)return;
-                    int radius=Math.max(28,Math.round(cursorSize*2.0f));
+                    int radius=Math.max(36,Math.round(cursorSize*2.8f));
                     int cx=Math.max(0,Math.min(source.getWidth()-1,Math.round(x+cursorSize/2f)));
                     int cy=Math.max(0,Math.min(source.getHeight()-1,Math.round(y+cursorSize/2f)));
                     int left=Math.max(0,Math.min(source.getWidth()-1,cx-radius));
@@ -777,11 +799,17 @@ public class MouseAccessibilityService extends AccessibilityService {
         for (android.view.accessibility.AccessibilityNodeInfo root : roots2) findComposerBounds(root, composer);
         for (android.view.accessibility.AccessibilityNodeInfo root : roots2) try { root.recycle(); } catch (Exception ignored) {}
         if (composer.width() > 40 && composer.height() > 20) {
-            float x = composer.left - Math.max(18f, Math.min(64f, composer.height() * 0.55f));
-            float y = composer.bottom - Math.max(18f, Math.min(44f, composer.height() * 0.35f));
-            if (x < 8) x = composer.left + Math.max(18f, Math.min(64f, composer.width() * 0.06f));
+            // The site's attachment control is normally inside the lower-left
+            // edge of the composer. The previous version tapped outside the
+            // composer, so the site's button was missed.
+            float x = composer.left + Math.max(20f, Math.min(46f, composer.height() * 0.55f));
+            float y = composer.bottom - Math.max(18f, Math.min(40f, composer.height() * 0.32f));
             boolean tapped = tapScreenPoint(x, y);
-            if (tapped) scheduleFileMenuClicks();
+            if (tapped) {
+                handler.postDelayed(() -> tapScreenPoint(x + 18f, y), 180);
+                scheduleFileMenuClicks();
+                handler.postDelayed(this::clickFileMenuItem, 1900);
+            }
             return tapped;
         }
         return false;
@@ -926,7 +954,13 @@ public class MouseAccessibilityService extends AccessibilityService {
         for (android.view.accessibility.AccessibilityNodeInfo root : roots2) findComposerBounds(root, composer);
         for (android.view.accessibility.AccessibilityNodeInfo root : roots2) try { root.recycle(); } catch (Exception ignored) {}
         if (composer.width() <= 40 || composer.height() <= 20) return false;
-        return tapComposerSendFallback(null, composer);
+        boolean tapped = tapComposerSendFallback(null, composer);
+        if (tapped) {
+            android.graphics.Rect c = new android.graphics.Rect(composer);
+            handler.postDelayed(() -> tapComposerSendFallback(null, c), 180);
+            handler.postDelayed(() -> tapComposerSendFallback(null, c), 360);
+        }
+        return tapped;
     }
 
     private boolean tapComposerSendFallback(android.view.accessibility.AccessibilityNodeInfo ignored, android.graphics.Rect composer) {
@@ -1034,7 +1068,8 @@ public class MouseAccessibilityService extends AccessibilityService {
                 all.equals("send") || all.equals("ارسال") ||
                 all.contains("send message") || all.contains("send prompt") ||
                 all.contains("send_button") || all.contains("send-button") ||
-                all.contains("sendbutton") || all.contains("submit") ||
+                all.contains("sendbutton") || all.contains("send prompt") || all.contains("send message") ||
+                all.contains("submit") ||
                 all.contains("ارسال پیام") || all.contains("ارسال") ||
                 all.contains("ارسال پیام") || all.contains("submit message");
         if (!label) return false;

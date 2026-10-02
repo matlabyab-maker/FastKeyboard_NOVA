@@ -158,7 +158,10 @@ public class FastKeyboardService extends InputMethodService {
     private void playKeySound(){try{if(backspaceTone!=null)backspaceTone.startTone(ToneGenerator.TONE_PROP_BEEP,28);}catch(Exception ignored){}}
     private void addArrowRepeat(Button b,int keyCode){final boolean[] repeating={false};final Runnable[] repeat={null};repeat[0]=()->{repeating[0]=true;sendKey(keyCode);handler.postDelayed(repeat[0],90);};b.setOnTouchListener((v,e)->{if(e.getAction()==MotionEvent.ACTION_DOWN){b.setBackground(makeBg(YELLOW));repeating[0]=false;sendKey(keyCode);handler.postDelayed(repeat[0],380);return true;}if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){handler.removeCallbacks(repeat[0]);b.setBackground(makeBg(CREAM));return true;}return true;});}
     private void addDualKeyBehavior(Button b,String main,String mark){
-        final boolean[] repeating={false}; final Runnable[] repeat={null};
+        final boolean[] repeating={false};
+        final float[] down={0f,0f};
+        final boolean[] moved={false};
+        final Runnable[] repeat={null};
         repeat[0]=()->{
             repeating[0]=true;
             playKeySound();
@@ -167,15 +170,23 @@ public class FastKeyboardService extends InputMethodService {
         };
         b.setOnTouchListener((v,e)->{
             if(e.getAction()==MotionEvent.ACTION_DOWN){
+                down[0]=e.getRawX(); down[1]=e.getRawY(); moved[0]=false;
                 b.setBackground(makeBg(YELLOW));
                 repeating[0]=false;
                 playKeySound();
                 handler.postDelayed(repeat[0],350);
                 return true;
             }
+            if(e.getAction()==MotionEvent.ACTION_MOVE){
+                if(Math.abs(e.getRawX()-down[0])>12f || Math.abs(e.getRawY()-down[1])>12f){
+                    moved[0]=true;
+                    handler.removeCallbacks(repeat[0]);
+                }
+                return true;
+            }
             if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){
                 handler.removeCallbacks(repeat[0]);
-                if(!repeating[0]) { commit(main); if(caps && !capsLocked && main.length()==1 && Character.isLetter(main.charAt(0))){caps=false;rebuild();} }
+                if(e.getAction()==MotionEvent.ACTION_UP && !moved[0] && !repeating[0]) { commit(main); if(caps && !capsLocked && main.length()==1 && Character.isLetter(main.charAt(0))){caps=false;rebuild();} }
                 b.setBackground(makeBg(CREAM));
                 return true;
             }
@@ -597,9 +608,25 @@ public class FastKeyboardService extends InputMethodService {
         }catch(Exception ignored){}
         return value;
     }
-    private void addGrid(LinearLayout box,String[] items,int cell){LinearLayout r=null;int count=0;for(String item:items){if(count%7==0){r=new LinearLayout(this);r.setOrientation(LinearLayout.HORIZONTAL);box.addView(r,new LinearLayout.LayoutParams(-1,dp(cell)));}final String shown=decodeSymbol(item);Button b=key(shown,20,NAVY,CREAM);r.addView(b,weight(1));b.setOnClickListener(v->commit(decodeSymbol(((Button)v).getText().toString())));count++;}}
+    private void installScrollSafeClick(Button b, final Runnable action){
+        final float[] down={0f,0f};
+        final boolean[] moved={false};
+        b.setOnTouchListener((v,e)->{
+            if(e.getAction()==MotionEvent.ACTION_DOWN){down[0]=e.getRawX();down[1]=e.getRawY();moved[0]=false;return true;}
+            if(e.getAction()==MotionEvent.ACTION_MOVE){
+                if(Math.abs(e.getRawX()-down[0])>14f || Math.abs(e.getRawY()-down[1])>14f)moved[0]=true;
+                return true;
+            }
+            if(e.getAction()==MotionEvent.ACTION_UP){
+                if(!moved[0] && action!=null) action.run();
+                return true;
+            }
+            return true;
+        });
+    }
+    private void addGrid(LinearLayout box,String[] items,int cell){LinearLayout r=null;int count=0;for(String item:items){if(count%7==0){r=new LinearLayout(this);r.setOrientation(LinearLayout.HORIZONTAL);box.addView(r,new LinearLayout.LayoutParams(-1,dp(cell)));}final String shown=decodeSymbol(item);Button b=key(shown,20,NAVY,CREAM);r.addView(b,weight(1));installScrollSafeClick(b,()->commit(decodeSymbol(b.getText().toString())));count++;}}
     private void showArabicMarks(View anchor){int[] loc=popupLocation(anchor);dismissPopup();ScrollView sv=scrollBox();LinearLayout box=gridContainer(sv);addGridCustom(box,ARABIC_MARKS,78,4,34);activePopup=new PopupWindow(sv,dp(330),dp(500),true);stylePopup(activePopup);showPopupAt(activePopup,loc[0],loc[1],500);}
-    private void addGridCustom(LinearLayout box,String[] items,int cell,int columns,float textSize){LinearLayout r=null;int count=0;for(String item:items){if(count%columns==0){r=new LinearLayout(this);r.setOrientation(LinearLayout.HORIZONTAL);box.addView(r,new LinearLayout.LayoutParams(-1,dp(cell)));}final String shown=decodeSymbol(item);Button b=key(shown,textSize,NAVY,CREAM);r.addView(b,weight(1));b.setOnClickListener(v->commit(decodeSymbol(((Button)v).getText().toString())));count++;}}
+    private void addGridCustom(LinearLayout box,String[] items,int cell,int columns,float textSize){LinearLayout r=null;int count=0;for(String item:items){if(count%columns==0){r=new LinearLayout(this);r.setOrientation(LinearLayout.HORIZONTAL);box.addView(r,new LinearLayout.LayoutParams(-1,dp(cell)));}final String shown=decodeSymbol(item);Button b=key(shown,textSize,NAVY,CREAM);r.addView(b,weight(1));installScrollSafeClick(b,()->commit(decodeSymbol(b.getText().toString())));count++;}}
     private void showGridPopup(View anchor,String[] items,int cell,int height){int[] loc=popupLocation(anchor);dismissPopup();ScrollView sv=scrollBox();addGrid(gridContainer(sv),items,cell);activePopup=new PopupWindow(sv,dp(330),dp(height),true);stylePopup(activePopup);showPopupAt(activePopup,loc[0],loc[1],height);}
     private void showRepeatGridPopup(View anchor,String[] items,int cell,int height){int[] loc=popupLocation(anchor);dismissPopup();ScrollView sv=scrollBox();addRepeatGrid(gridContainer(sv),items,cell);activePopup=new PopupWindow(sv,dp(330),dp(height),true);stylePopup(activePopup);showPopupAt(activePopup,loc[0],loc[1],height);}
     private void addRepeatGrid(LinearLayout box,String[] items,int cell){LinearLayout r=null;int count=0;for(String item:items){if(count%7==0){r=new LinearLayout(this);r.setOrientation(LinearLayout.HORIZONTAL);box.addView(r,new LinearLayout.LayoutParams(-1,dp(cell)));}final String shown=decodeSymbol(item);Button b=key(shown,20,NAVY,CREAM);r.addView(b,weight(1));addDualKeyBehavior(b,shown,shown);count++;}}
