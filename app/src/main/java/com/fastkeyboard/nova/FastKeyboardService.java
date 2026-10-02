@@ -69,6 +69,7 @@ public class FastKeyboardService extends InputMethodService {
     private final Predictor predictor=new Predictor();
     private final ArrayList<Button> suggestionButtons=new ArrayList<>();
     private PopupWindow activePopup;
+    private int mousePopupX=0, mousePopupY=0;
     private final Runnable suggestionUpdateRunnable=()->updateSuggestionsNow();
 
     private static final String[] PERSIAN_NUMBERS={"۱","۲","۳","۴","۵","۶","۷","۸","۹","۰"};
@@ -288,107 +289,226 @@ public class FastKeyboardService extends InputMethodService {
 
     private void showMouse(View anchor){
         dismissPopup();
-        MouseAccessibilityService mouseService = MouseAccessibilityService.getInstance();
-        if (mouseService != null) mouseService.showMouseOverlay();
-        LinearLayout box=new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(8,8,8,8);
-        box.setBackgroundColor(CREAM);
+        MouseAccessibilityService.showCursorFromKeyboard();
 
-        TextView title=new TextView(this);
-        title.setText("موس صفحه / نشانگر سیستمی");
-        title.setTextSize(16);
-        title.setTextColor(NAVY);
-        title.setGravity(Gravity.CENTER);
-        box.addView(title,new LinearLayout.LayoutParams(-1,dp(38)));
+        // The mouse panel intentionally follows the user's supplied reference image.
+        // Do not substitute another mouse layout here.
+        FrameLayout panel = new FrameLayout(this);
+        panel.setBackground(makeBg(CREAM));
+        panel.setPadding(0,0,0,0);
 
-        final FrameLayout touchPad=new FrameLayout(this);
-        touchPad.setBackground(makeBg(Color.rgb(232,236,242)));
-        LinearLayout.LayoutParams padParams=new LinearLayout.LayoutParams(-1,dp(150));
-        padParams.setMargins(4,4,4,6);
-        box.addView(touchPad,padParams);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(0,0,0,0);
+        panel.addView(body, new FrameLayout.LayoutParams(-1,-1));
 
-        TextView localHint=new TextView(this);
-        localHint.setText("میدان لمسی موس — حرکت نشانگر روی کل صفحه");
-        localHint.setTextSize(14);
-        localHint.setTextColor(NAVY);
-        localHint.setGravity(Gravity.CENTER);
-        touchPad.addView(localHint,new FrameLayout.LayoutParams(-1,-1));
+        // Top strip: transparency only. It is deliberately kept out of the main
+        // control row so the two wheel buttons remain exactly where the reference shows them.
+        LinearLayout top = new LinearLayout(this);
+        top.setOrientation(LinearLayout.HORIZONTAL);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setPadding(dp(5),0,dp(5),0);
+        TextView transparencyLabel = new TextView(this);
+        transparencyLabel.setText("شفافیت");
+        transparencyLabel.setTextSize(12);
+        transparencyLabel.setTextColor(NAVY);
+        transparencyLabel.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(transparencyLabel, new LinearLayout.LayoutParams(dp(52),dp(30)));
+        SeekBar transparency = new SeekBar(this);
+        transparency.setMax(80);
+        int savedTransparency = prefs.getInt("mousePopupTransparency",100);
+        savedTransparency=Math.max(20,Math.min(100,savedTransparency));
+        transparency.setProgress(savedTransparency-20);
+        top.addView(transparency,new LinearLayout.LayoutParams(0,dp(30),1f));
+        TextView transparencyValue = new TextView(this);
+        transparencyValue.setText(savedTransparency+"%");
+        transparencyValue.setTextSize(11);
+        transparencyValue.setTextColor(NAVY);
+        transparencyValue.setGravity(Gravity.CENTER);
+        top.addView(transparencyValue,new LinearLayout.LayoutParams(dp(42),dp(30)));
+        body.addView(top,new LinearLayout.LayoutParams(-1,dp(34)));
+
+        // Main field + the two vertical controls at the right, exactly as in the reference.
+        LinearLayout middle = new LinearLayout(this);
+        middle.setOrientation(LinearLayout.HORIZONTAL);
+        middle.setPadding(0,0,0,0);
+        final TextView touchPad = new TextView(this);
+        touchPad.setText("میدان لمسی\nحرکت نشانگر");
+        touchPad.setTextSize(16);
+        touchPad.setTextColor(Color.rgb(190,194,202));
+        touchPad.setGravity(Gravity.CENTER);
+        touchPad.setBackground(makeBg(Color.rgb(242,244,248)));
+        middle.addView(touchPad,new LinearLayout.LayoutParams(0,dp(150),1f));
+
+        LinearLayout side = new LinearLayout(this);
+        side.setOrientation(LinearLayout.VERTICAL);
+        Button close = key("Close",15,NAVY,Color.rgb(255,225,205));
+        Button drag = key("Drag",16,NAVY,Color.rgb(255,246,185));
+        side.addView(close,new LinearLayout.LayoutParams(dp(48),0,1f));
+        side.addView(drag,new LinearLayout.LayoutParams(dp(48),0,1f));
+        middle.addView(side,new LinearLayout.LayoutParams(dp(48),dp(150)));
+        body.addView(middle,new LinearLayout.LayoutParams(-1,dp(150)));
 
         final float[] last={0,0};
-        final boolean[] dragging={false};
+        final boolean[] moving={false};
         touchPad.setOnTouchListener((v,e)->{
             if(e.getAction()==MotionEvent.ACTION_DOWN){
-                last[0]=e.getX(); last[1]=e.getY();
-                dragging[0]=true;
-                return true;
+                last[0]=e.getRawX(); last[1]=e.getRawY(); moving[0]=true; return true;
             }
-            if(e.getAction()==MotionEvent.ACTION_MOVE && dragging[0]){
-                float dx=e.getX()-last[0];
-                float dy=e.getY()-last[1];
-                if(Math.abs(dx)>=1 || Math.abs(dy)>=1){
+            if(e.getAction()==MotionEvent.ACTION_MOVE && moving[0]){
+                float dx=e.getRawX()-last[0], dy=e.getRawY()-last[1];
+                if(Math.abs(dx)>=0.5f || Math.abs(dy)>=0.5f){
                     MouseAccessibilityService.moveRelativeFromKeyboard(dx*2.0f,dy*2.0f);
-                    last[0]=e.getX(); last[1]=e.getY();
+                    last[0]=e.getRawX(); last[1]=e.getRawY();
                 }
                 return true;
             }
-            if(e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL){
-                dragging[0]=false;
-                return true;
-            }
+            if(e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL){moving[0]=false;return true;}
             return true;
         });
 
-        LinearLayout buttons=new LinearLayout(this);
-        buttons.setOrientation(LinearLayout.HORIZONTAL);
-        Button leftClick=key("کلیک چپ",15,NAVY,CREAM);
-        Button rightClick=key("کلیک راست",15,NAVY,CREAM);
-        buttons.addView(leftClick,weight(1));
-        buttons.addView(rightClick,weight(1));
-        box.addView(buttons,new LinearLayout.LayoutParams(-1,dp(58)));
+        // Drag moves the mouse panel itself. It does not alter keyboard controls.
+        final float[] dragLast={0,0};
+        final boolean[] panelMoving={false};
+        drag.setOnTouchListener((v,e)->{
+            if(e.getAction()==MotionEvent.ACTION_DOWN){
+                dragLast[0]=e.getRawX(); dragLast[1]=e.getRawY(); panelMoving[0]=true; return true;
+            }
+            if(e.getAction()==MotionEvent.ACTION_MOVE && panelMoving[0]){
+                float dx=e.getRawX()-dragLast[0],dy=e.getRawY()-dragLast[1];
+                if(Math.abs(dx)>=1 || Math.abs(dy)>=1){
+                    // PopupWindow supports position updates through update().
+                    if(activePopup!=null){
+                        mousePopupX += Math.round(dx);
+                        mousePopupY += Math.round(dy);
+                        int sw=getResources().getDisplayMetrics().widthPixels;
+                        int sh=getResources().getDisplayMetrics().heightPixels;
+                        int pw=panel.getWidth()>0?panel.getWidth():dp(430);
+                        int ph=panel.getHeight()>0?panel.getHeight():dp(250);
+                        mousePopupX=Math.max(0,Math.min(Math.max(0,sw-pw),mousePopupX));
+                        mousePopupY=Math.max(0,Math.min(Math.max(0,sh-ph),mousePopupY));
+                        activePopup.update(mousePopupX,mousePopupY,-1,-1);
+                    }
+                    dragLast[0]=e.getRawX(); dragLast[1]=e.getRawY();
+                }
+                return true;
+            }
+            if(e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL){panelMoving[0]=false;return true;}
+            return true;
+        });
+
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        controls.setPadding(0,0,0,0);
+
+        Button leftClick=key("کلیک چپ",15,NAVY,Color.rgb(190,225,245));
+        Button wheel1=key("↕",24,NAVY,Color.rgb(255,246,185));
+        Button auto=key("حرکت\nخودکار",11,NAVY,Color.rgb(255,244,155));
+        Button wheel2=key("↕",24,NAVY,Color.rgb(255,246,185));
+        Button rightClick=key("کلیک راست",15,NAVY,Color.rgb(255,246,185));
+        Button select=key("Select",14,NAVY,Color.rgb(255,246,185));
+
+        controls.addView(leftClick,weight(2.25f));
+        controls.addView(wheel1,weight(.62f));
+        controls.addView(auto,weight(1.45f));
+        controls.addView(wheel2,weight(.62f));
+        controls.addView(rightClick,weight(2.15f));
+        controls.addView(select,weight(1.25f));
+        body.addView(controls,new LinearLayout.LayoutParams(-1,dp(58)));
+
+        final boolean[] selectMode={false};
         final boolean[] leftHeld={false};
-        final boolean[] dragStarted={false};
-        final Runnable[] dragStart={null};
-        dragStart[0]=()->{if(leftHeld[0]){dragStarted[0]=true;MouseAccessibilityService.beginDragFromKeyboard();}};
         leftClick.setOnTouchListener((v,e)->{
             if(e.getAction()==MotionEvent.ACTION_DOWN){
-                leftHeld[0]=true;dragStarted[0]=false;handler.postDelayed(dragStart[0],500);return true;
+                leftHeld[0]=true;
+                MouseAccessibilityService.beginDragFromKeyboard();
+                return true;
             }
             if(e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL){
-                handler.removeCallbacks(dragStart[0]);
-                if(dragStarted[0]){MouseAccessibilityService.endDragFromKeyboard();dragStarted[0]=false;}
-                else if(e.getAction()==MotionEvent.ACTION_UP){MouseAccessibilityService.clickFromKeyboard(false);}
-                leftHeld[0]=false;return true;
+                MouseAccessibilityService.endDragFromKeyboard();
+                if(e.getAction()==MotionEvent.ACTION_UP && !selectMode[0]) MouseAccessibilityService.clickFromKeyboard(false);
+                leftHeld[0]=false;
+                return true;
             }
             return true;
         });
         rightClick.setOnClickListener(v->MouseAccessibilityService.clickFromKeyboard(true));
 
-        LinearLayout nav=new LinearLayout(this);
-        nav.setOrientation(LinearLayout.HORIZONTAL);
-        Button up=key("↑",25,BLUE,CREAM);
-        Button down=key("↓",25,BLUE,CREAM);
-        Button left=key("←",25,BLUE,CREAM);
-        Button right=key("→",25,BLUE,CREAM);
-        nav.addView(left,weight(1)); nav.addView(up,weight(1));
-        nav.addView(down,weight(1)); nav.addView(right,weight(1));
-        box.addView(nav,new LinearLayout.LayoutParams(-1,dp(54)));
+        // The two narrow vertical glyphs are mouse-wheel controls, not magnifiers.
+        wheel1.setOnClickListener(v->scrollMouse(-1));
+        wheel2.setOnClickListener(v->scrollMouse(1));
+        auto.setOnClickListener(v->{
+            auto.setText(auto.getText().toString().contains("روشن") ? "حرکت\nخودکار" : "حرکت\nخودکار: روشن");
+            MouseAccessibilityService.toggleAutoTargetFromKeyboard();
+        });
+        select.setOnClickListener(v->{
+            selectMode[0]=!selectMode[0];
+            select.setText(selectMode[0]?"Select ✓":"Select");
+        });
 
-        addSystemMouseRepeat(up,-1,0);
-        addSystemMouseRepeat(down,1,0);
-        addSystemMouseRepeat(left,0,-1);
-        addSystemMouseRepeat(right,0,1);
+        transparency.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+            public void onProgressChanged(SeekBar bar,int value,boolean fromUser){
+                int alpha=Math.max(20,Math.min(100,value+20));
+                panel.setAlpha(alpha/100f);
+                transparencyValue.setText(alpha+"%");
+                if(fromUser) prefs.edit().putInt("mousePopupTransparency",alpha).apply();
+            }
+            public void onStartTrackingTouch(SeekBar bar){}
+            public void onStopTrackingTouch(SeekBar bar){}
+        });
+        panel.setAlpha(savedTransparency/100f);
 
-        TextView hint=new TextView(this);
-        hint.setText("حرکت: تاچ‌پد | کلیک چپ: لمس | درگ: نگه‌داشتن کلیک چپ و حرکت تاچ‌پد | برای فعال‌سازی موس سیستمی، Accessibility را روشن کنید.");
-        hint.setTextSize(11);
-        hint.setTextColor(NAVY);
-        hint.setGravity(Gravity.CENTER);
-        box.addView(hint,new LinearLayout.LayoutParams(-1,dp(45)));
+        close.setOnClickListener(v->{dismissPopup();MouseAccessibilityService.hideCursorFromKeyboard();});
 
-        activePopup=new PopupWindow(box,dp(330),dp(390),true);
+        // One resize grip only: top-left, matching the supplied reference.
+        TextView grip=new TextView(this);
+        grip.setText("╱╱");
+        grip.setTextSize(16);
+        grip.setTextColor(Color.DKGRAY);
+        grip.setGravity(Gravity.TOP|Gravity.LEFT);
+        grip.setPadding(dp(2),0,0,0);
+        panel.addView(grip,new FrameLayout.LayoutParams(dp(34),dp(34),Gravity.TOP|Gravity.LEFT));
+
+        final float[] resizeLast={0,0};
+        final int[] base={0,0};
+        final boolean[] resizing={false};
+        grip.setOnTouchListener((v,e)->{
+            if(e.getAction()==MotionEvent.ACTION_DOWN){
+                resizeLast[0]=e.getRawX(); resizeLast[1]=e.getRawY();
+                int[] size=popupSize(panel); base[0]=size[0]; base[1]=size[1]; resizing[0]=true; return true;
+            }
+            if(e.getAction()==MotionEvent.ACTION_MOVE && resizing[0] && activePopup!=null){
+                int nw=Math.max(dp(260),base[0]-Math.round(e.getRawX()-resizeLast[0]));
+                int nh=Math.max(dp(220),base[1]-Math.round(e.getRawY()-resizeLast[1]));
+                activePopup.update(nw,nh);
+                return true;
+            }
+            if(e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL){resizing[0]=false;return true;}
+            return true;
+        });
+
+        activePopup=new PopupWindow(panel,dp(430),dp(250),true);
+        activePopup.setOutsideTouchable(true);
         stylePopup(activePopup);
-        showPopupAbove(anchor,activePopup,dp(390));
+        activePopup.setOnDismissListener(v->MouseAccessibilityService.hideCursorFromKeyboard());
+        int[] anchorLoc=popupLocation(anchor);
+        int ph=dp(250);
+        int screenH=getResources().getDisplayMetrics().heightPixels;
+        mousePopupX=Math.max(0,anchorLoc[0]);
+        mousePopupY=anchorLoc[1]-ph;
+        if(mousePopupY<dp(4)) mousePopupY=dp(4);
+        if(mousePopupY+ph>screenH-dp(4)) mousePopupY=Math.max(dp(4),screenH-ph-dp(4));
+        activePopup.showAtLocation(currentRoot!=null?currentRoot:getWindow().getWindow().getDecorView(),Gravity.TOP|Gravity.LEFT,mousePopupX,mousePopupY);
+    }
+
+    private int[] popupSize(View v){
+        int w=v.getWidth()>0?v.getWidth():dp(430);
+        int h=v.getHeight()>0?v.getHeight():dp(250);
+        return new int[]{w,h};
+    }
+
+    private void scrollMouse(int direction){
+        MouseAccessibilityService.scrollFromKeyboard(direction);
     }
 
     private void addSystemMouseRepeat(Button b,float dy,float dx){

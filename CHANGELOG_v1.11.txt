@@ -1,0 +1,7 @@
+FastKeyboard_NOVA v1.11
+
+- Mouse panel rebuilt from the user-supplied reference image only.
+- Preserved the Fast Keyboard Persian keyboard layout.
+- Mouse panel controls are wired: touch field, left click, right click, two mouse-wheel controls, auto movement, Select, Drag, Close, transparency and one top-left resize grip.
+- Removed the old popup mouse arrows and magnifier controls from the keyboard mouse panel.
+- The keyboard mouse panel no longer opens a second redesigned system mouse panel; the Accessibility service is used for the cursor/actions.

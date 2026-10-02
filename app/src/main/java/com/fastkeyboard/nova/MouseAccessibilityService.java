@@ -692,6 +692,37 @@ public class MouseAccessibilityService extends AccessibilityService {
         if(s!=null){s.dragMode=false;}
     }
 
+    public static void scrollFromKeyboard(int direction) {
+        MouseAccessibilityService s=instance;
+        if(s!=null) s.scroll(direction);
+    }
+
+    public static void toggleAutoTargetFromKeyboard() {
+        MouseAccessibilityService s=instance;
+        if(s!=null) s.toggleAutoTargetMode();
+    }
+
+    private void scroll(int direction) {
+        if (Build.VERSION.SDK_INT < 24) return;
+        if (cursor == null) showCursor();
+        float cx=x+cursorSize/2f;
+        float cy=y+cursorSize/2f;
+        float amount=direction<0 ? -90f : 90f;
+        Path path=new Path();
+        path.moveTo(cx,cy);
+        path.lineTo(cx,cy);
+        GestureDescription.StrokeDescription stroke =
+            new GestureDescription.StrokeDescription(path,0,60);
+        // Accessibility has no universal synthetic mouse-wheel event. A short
+        // swipe at the cursor is used as the compatibility fallback for scrollable views.
+        Path scrollPath=new Path();
+        scrollPath.moveTo(cx,cy);
+        scrollPath.lineTo(cx,cy-amount);
+        GestureDescription.StrokeDescription scrollStroke =
+            new GestureDescription.StrokeDescription(scrollPath,0,180);
+        dispatchGesture(new GestureDescription.Builder().addStroke(scrollStroke).build(),null,null);
+    }
+
     private void moveRelative(float dx, float dy) {
         if (cursor == null) showCursor();
         float oldX=x, oldY=y;
