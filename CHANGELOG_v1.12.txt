@@ -1,0 +1,5 @@
+FastKeyboard_NOVA v1.12
+
+- Fixed the Java compilation error reported by GitHub Actions in FastKeyboardService.java.
+- Corrected PopupWindow.OnDismissListener lambda to use the required no-argument callback.
+- No keyboard layout or mouse-panel design/function changes were made beyond the compile fix.

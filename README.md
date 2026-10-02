@@ -24,3 +24,8 @@ APK به‌عنوان Artifact با نام `FastKeyboard-Nova-debug-apk` منت�
 ## نکته
 
 چیدمان و قابلیت‌های مبنای قبلی عمداً در این انتقال تغییر داده نشده‌اند. اصلاحات داخلی بعدی باید جداگانه و مرحله‌به‌مرحله اعمال شوند.
+
+
+## v1.13 — Send button
+
+The suggestion bar now has six suggestion cells plus one fixed **ارسال** cell. The Send button is blue and is intended to trigger the active editor's send action. It tries `IME_ACTION_SEND`, then `IME_ACTION_DONE`, and finally Enter as a compatibility fallback. The keyboard layout and mouse design are unchanged.

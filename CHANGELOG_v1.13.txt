@@ -1,0 +1,7 @@
+FastKeyboard_NOVA v1.13
+
+- Added the shared «ارسال» button to the suggestion bar.
+- The Send button occupies one fixed suggestion-bar cell; six suggestion cells remain.
+- Send button uses the blue standard mark/color while preserving the suggestion bar height and keyboard layout.
+- Send action tries IME_ACTION_SEND, then IME_ACTION_DONE, then Enter as fallback.
+- No keyboard key positions, mouse panel design, or other unrelated controls were changed.

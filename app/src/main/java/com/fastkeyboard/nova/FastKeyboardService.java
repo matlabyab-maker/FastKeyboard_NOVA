@@ -128,7 +128,7 @@ public class FastKeyboardService extends InputMethodService {
         String[] icons={"▣","⧉","▣","✂","↶","↷","▤","⚙","➤","↕"};
         for(int i=0;i<labels.length;i++){Button b=keyWithIcon(labels[i],icons[i],12,NAVY,CREAM);tools.addView(b,weight(1));final int n=i;switch(n){case 0:b.setOnClickListener(v->paste());break;case 1:b.setOnClickListener(v->copyAll());break;case 2:b.setOnClickListener(v->copyAll());break;case 3:b.setOnClickListener(v->cut());break;case 4:b.setOnClickListener(v->ctrlKey(KeyEvent.KEYCODE_Z));break;case 5:b.setOnClickListener(v->ctrlKey(KeyEvent.KEYCODE_Y));break;case 6:b.setOnClickListener(v->showHistory(v));break;case 7:b.setOnClickListener(v->showTools(v));break;case 8:b.setOnClickListener(this::showMouse);break;default:b.setOnClickListener(v->toggleResize());}}
         root.addView(tools);
-        LinearLayout suggestions=row(0f); suggestions.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(44),0f)); suggestionButtons.clear(); for(int i=0;i<7;i++){Button b=key("",14,NAVY,CREAM); b.setSingleLine(true); b.setMaxLines(1); b.setEllipsize(android.text.TextUtils.TruncateAt.END); b.setHorizontallyScrolling(true); b.setIncludeFontPadding(false); b.setMinHeight(0); b.setMinWidth(0); b.setGravity(Gravity.CENTER); suggestions.addView(b,weight(1)); suggestionButtons.add(b); final int idx=i; b.setOnClickListener(v->{String text=((Button)v).getText().toString(); if(!text.isEmpty()) applySuggestion(text);});} root.addView(suggestions); root.post(this::scheduleSuggestions);
+        LinearLayout suggestions=row(0f); suggestions.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(44),0f)); suggestionButtons.clear(); for(int i=0;i<6;i++){Button b=key("",14,NAVY,CREAM); b.setSingleLine(true); b.setMaxLines(1); b.setEllipsize(android.text.TextUtils.TruncateAt.END); b.setHorizontallyScrolling(true); b.setIncludeFontPadding(false); b.setMinHeight(0); b.setMinWidth(0); b.setGravity(Gravity.CENTER); suggestions.addView(b,weight(1)); suggestionButtons.add(b); b.setOnClickListener(v->{String text=((Button)v).getText().toString(); if(!text.isEmpty()) applySuggestion(text);});} Button send=key("ارسال",14,Color.rgb(25,95,170),CREAM); send.setSingleLine(true); send.setMaxLines(1); send.setEllipsize(android.text.TextUtils.TruncateAt.END); send.setHorizontallyScrolling(true); send.setIncludeFontPadding(false); send.setMinHeight(0); send.setMinWidth(0); send.setGravity(Gravity.CENTER); send.setTag(CREAM); send.setBackground(makeBg(CREAM)); send.setContentDescription("ارسال"); send.setOnClickListener(v->performSendAction()); suggestions.addView(send,weight(1)); root.addView(suggestions); root.post(this::scheduleSuggestions);
         LinearLayout nums=row(1f);String[] numsText=english?new String[]{"1","2","3","4","5","6","7","8","9","0"}:PERSIAN_NUMBERS;for(int i=0;i<10;i++){Button b=dualKey(numsText[i],NUMBER_MARKS[i],19,BROWN,RED,CREAM);nums.addView(b,weight(1));addDualKeyBehavior(b, numsText[i], NUMBER_MARKS[i]);}Button back=key("⌫",22,NAVY,PINK);nums.addView(back,weight(1.45f));addBackspaceRepeat(back);root.addView(nums);
         LinearLayout letters=new LinearLayout(this);letters.setOrientation(LinearLayout.HORIZONTAL);letters.setLayoutParams(new LinearLayout.LayoutParams(-1,0,2f));
         LinearLayout letterRows=new LinearLayout(this);letterRows.setOrientation(LinearLayout.VERTICAL);letterRows.setLayoutParams(new LinearLayout.LayoutParams(0,-1,11f));
@@ -251,7 +251,7 @@ public class FastKeyboardService extends InputMethodService {
         if(ic!=null){ CharSequence cs=ic.getTextBeforeCursor(80,0); if(cs!=null) before=cs.toString(); }
         final String context=before;
         suggestionExecutor.execute(() -> {
-            final List<String> list=predictor.suggest(context,7);
+            final List<String> list=predictor.suggest(context,6);
             handler.post(() -> {
                 if(suggestionButtons.isEmpty()) return;
                 for(int i=0;i<suggestionButtons.size();i++){
@@ -262,6 +262,20 @@ public class FastKeyboardService extends InputMethodService {
             });
         });
     }
+    private void performSendAction(){
+        InputConnection ic=getCurrentInputConnection();
+        if(ic==null) return;
+        boolean handled=false;
+        try { handled=ic.performEditorAction(EditorInfo.IME_ACTION_SEND); } catch(Exception ignored) {}
+        if(!handled){
+            try { handled=ic.performEditorAction(EditorInfo.IME_ACTION_DONE); } catch(Exception ignored) {}
+        }
+        if(!handled){
+            sendKey(KeyEvent.KEYCODE_ENTER);
+        }
+        scheduleSuggestions();
+    }
+
     private void applySuggestion(String suggestion){
         InputConnection ic=getCurrentInputConnection(); if(ic==null) return;
         if(suggestion.equals("؟")||suggestion.equals("!")){ ic.commitText(suggestion+" ",1); predictor.observePunctuation(suggestion); scheduleSuggestions(); return; }
@@ -490,7 +504,7 @@ public class FastKeyboardService extends InputMethodService {
         activePopup=new PopupWindow(panel,dp(430),dp(250),true);
         activePopup.setOutsideTouchable(true);
         stylePopup(activePopup);
-        activePopup.setOnDismissListener(v->MouseAccessibilityService.hideCursorFromKeyboard());
+        activePopup.setOnDismissListener(() -> MouseAccessibilityService.hideCursorFromKeyboard());
         int[] anchorLoc=popupLocation(anchor);
         int ph=dp(250);
         int screenH=getResources().getDisplayMetrics().heightPixels;
