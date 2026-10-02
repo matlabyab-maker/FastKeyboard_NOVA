@@ -1,0 +1,9 @@
+FastKeyboard_NOVA v1.21
+
+File button correction:
+- Removed the generic Android ACTION_OPEN_DOCUMENT / ACTION_GET_CONTENT fallback.
+- The keyboard now ONLY attempts to click the active site's own attachment/file control.
+- Added recognition for "Add files and more", "Add photos and files", attachment/upload labels and Persian equivalents.
+- After opening an attachment menu, the service waits briefly and clicks the site's own "Add files" / file-selection menu item.
+- This prevents the keyboard from opening Android's generic explorer-app chooser, which did not continue the site's upload flow.
+- Mouse design and the rest of the keyboard layout are unchanged.

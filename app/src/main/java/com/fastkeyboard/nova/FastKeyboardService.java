@@ -277,33 +277,15 @@ public class FastKeyboardService extends InputMethodService {
     }
 
     private void performFileAction(){
-        // First try the active app/site attachment button through Accessibility.
-        // If the site does not expose that button (or Accessibility is not enabled),
-        // open Android's normal document picker as a reliable fallback.
+        // Do NOT launch Android's generic file chooser here. The required
+        // behavior is to click the active site's own attachment/file button,
+        // letting that site open its own picker and continue the upload flow.
         boolean handled = MouseAccessibilityService.clickFileButtonFromKeyboard();
         if(!handled){
-            try {
-                Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-                pick.addCategory(Intent.CATEGORY_OPENABLE);
-                pick.setType("*/*");
-                pick.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(pick);
-                handled = true;
-            } catch (Exception e) {
-                try {
-                    Intent pick = new Intent(Intent.ACTION_GET_CONTENT);
-                    pick.addCategory(Intent.CATEGORY_OPENABLE);
-                    pick.setType("*/*");
-                    pick.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(pick);
-                    handled = true;
-                } catch (Exception ignored) {}
-            }
+            android.widget.Toast.makeText(this,
+                    "دکمه انتخاب فایل سایت پیدا نشد؛ Accessibility را فعال کنید.",
+                    android.widget.Toast.LENGTH_SHORT).show();
         }
-        if(!handled){
-            android.widget.Toast.makeText(this, "باز کردن انتخاب فایل انجام نشد.", android.widget.Toast.LENGTH_SHORT).show();
-        }
-        scheduleSuggestions();
     }
 
     private void applySuggestion(String suggestion){

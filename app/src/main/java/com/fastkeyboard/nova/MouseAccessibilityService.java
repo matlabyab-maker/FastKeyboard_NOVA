@@ -671,7 +671,61 @@ public class MouseAccessibilityService extends AccessibilityService {
             }
         } catch (Exception ignored) {}
         try { best.recycle(); } catch (Exception ignored) {}
+        if (ok) {
+            // ChatGPT and similar sites may expose the attachment control as a
+            // "Add files and more" (+) menu first. After opening it, click the
+            // site's own "Add files" menu item. This never launches a generic
+            // Android document picker from the keyboard.
+            handler.postDelayed(this::clickFileMenuItem, 280);
+        }
         return ok;
+    }
+
+    private boolean clickFileMenuItem() {
+        if (Build.VERSION.SDK_INT < 21) return false;
+        final String ownPackage = getPackageName();
+        java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> candidates = new java.util.ArrayList<>();
+        try {
+            android.view.accessibility.AccessibilityNodeInfo active = getRootInActiveWindow();
+            if (active != null && !ownPackage.equals(active.getPackageName())) collectFileMenuCandidates(active, candidates);
+            if (candidates.isEmpty()) {
+                for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+                    if (w == null) continue;
+                    android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
+                    if (root == null || ownPackage.equals(root.getPackageName())) continue;
+                    collectFileMenuCandidates(root, candidates);
+                }
+            }
+        } catch (Exception ignored) {}
+        android.view.accessibility.AccessibilityNodeInfo best = chooseBestFileMenuCandidate(candidates);
+        for (android.view.accessibility.AccessibilityNodeInfo n : candidates) if (n != best) try { n.recycle(); } catch (Exception ignored) {}
+        if (best == null) return false;
+        boolean ok = false;
+        try { if (best.isEnabled()) ok = best.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK); } catch (Exception ignored) {}
+        try { best.recycle(); } catch (Exception ignored) {}
+        return ok;
+    }
+
+    private void collectFileMenuCandidates(android.view.accessibility.AccessibilityNodeInfo node, java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> out) {
+        if (node == null) return;
+        try {
+            String text = node.getText() == null ? "" : node.getText().toString().toLowerCase(java.util.Locale.ROOT);
+            String desc = node.getContentDescription() == null ? "" : node.getContentDescription().toString().toLowerCase(java.util.Locale.ROOT);
+            String all = text + " " + desc;
+            boolean hit = all.contains("add files") || all.contains("add file") || all.contains("attach files") || all.contains("choose file") || all.contains("select file") || all.contains("انتخاب فایل") || all.contains("افزودن فایل") || all.contains("پیوست") || all.contains("ضمیمه");
+            if (hit && node.isVisibleToUser() && node.isEnabled() && node.isClickable()) out.add(android.view.accessibility.AccessibilityNodeInfo.obtain(node));
+            for (int i=0;i<node.getChildCount();i++) { android.view.accessibility.AccessibilityNodeInfo c=node.getChild(i); if(c!=null){ collectFileMenuCandidates(c,out); try{c.recycle();}catch(Exception ignored){} } }
+        } catch (Exception ignored) {}
+    }
+
+    private android.view.accessibility.AccessibilityNodeInfo chooseBestFileMenuCandidate(java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> list) {
+        android.view.accessibility.AccessibilityNodeInfo best=null; int score=Integer.MIN_VALUE;
+        for (android.view.accessibility.AccessibilityNodeInfo n:list) {
+            String t=n.getText()==null?"":n.getText().toString().toLowerCase(java.util.Locale.ROOT);
+            String d=n.getContentDescription()==null?"":n.getContentDescription().toString().toLowerCase(java.util.Locale.ROOT);
+            int s=0; if(t.contains("add files")||d.contains("add files"))s+=150; if(t.contains("add file")||d.contains("add file"))s+=130; if(d.contains("attach files"))s+=120; if(t.contains("انتخاب فایل")||d.contains("انتخاب فایل"))s+=120; if(n.isClickable())s+=20; if(s>score){score=s;best=n;}
+        }
+        return best;
     }
 
     private void collectFileCandidates(android.view.accessibility.AccessibilityNodeInfo node,
@@ -698,6 +752,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         if (all.isEmpty()) return false;
 
         boolean label =
+                all.contains("add files and more") || all.contains("add photos and files") ||
                 all.contains("attach files") || all.contains("attach file") ||
                 all.contains("add files") || all.contains("add file") ||
                 all.contains("upload files") || all.contains("upload file") ||
@@ -732,7 +787,8 @@ public class MouseAccessibilityService extends AccessibilityService {
             String text = n.getText() == null ? "" : n.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
             String desc = n.getContentDescription() == null ? "" : n.getContentDescription().toString().trim().toLowerCase(java.util.Locale.ROOT);
             String id = n.getViewIdResourceName() == null ? "" : n.getViewIdResourceName().toLowerCase(java.util.Locale.ROOT);
-            if (desc.contains("attach files") || desc.contains("attach file")) score += 120;
+            if (desc.contains("add files and more") || desc.contains("add photos and files")) score += 150;
+            if (desc.contains("attach files") || desc.contains("attach file")) score += 125;
             if (text.contains("انتخاب فایل") || desc.contains("انتخاب فایل")) score += 115;
             if (desc.contains("add files") || desc.contains("add file")) score += 110;
             if (desc.contains("upload files") || desc.contains("upload file")) score += 100;
