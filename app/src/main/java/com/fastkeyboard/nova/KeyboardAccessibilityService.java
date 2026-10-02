@@ -91,6 +91,66 @@ public class KeyboardAccessibilityService extends AccessibilityService {
         return roots;
     }
 
+    private AccessibilityNodeInfo findBottomLeftSiteControl(ArrayList<AccessibilityNodeInfo> roots) {
+        AccessibilityNodeInfo best = null; float bestScore = Float.NEGATIVE_INFINITY;
+        Rect win = findTargetScreenBounds();
+        float yMin = win.top + win.height() * 0.68f;
+        for (AccessibilityNodeInfo root : roots) {
+            best = findBottomControlRecursive(root, best, true, yMin, win, bestScore);
+            if (best != null) {
+                Rect br = new Rect(); best.getBoundsInScreen(br);
+                bestScore = scoreBottomControl(br, true, win, yMin);
+            }
+        }
+        return best;
+    }
+
+    private AccessibilityNodeInfo findBottomRightSiteControl(ArrayList<AccessibilityNodeInfo> roots) {
+        AccessibilityNodeInfo best = null; float bestScore = Float.NEGATIVE_INFINITY;
+        Rect win = findTargetScreenBounds();
+        float yMin = win.top + win.height() * 0.68f;
+        for (AccessibilityNodeInfo root : roots) {
+            best = findBottomControlRecursive(root, best, false, yMin, win, bestScore);
+            if (best != null) {
+                Rect br = new Rect(); best.getBoundsInScreen(br);
+                bestScore = scoreBottomControl(br, false, win, yMin);
+            }
+        }
+        return best;
+    }
+
+    private AccessibilityNodeInfo findBottomControlRecursive(AccessibilityNodeInfo n, AccessibilityNodeInfo current, boolean left, float yMin, Rect win, float currentScore) {
+        if (n == null) return current;
+        try {
+            if (n.isVisibleToUser() && n.isEnabled() && n.isClickable()) {
+                Rect r = new Rect(); n.getBoundsInScreen(r);
+                if (r.width() >= 6 && r.height() >= 6 && r.centerY() >= yMin && r.bottom <= win.bottom + 20) {
+                    float score = scoreBottomControl(r, left, win, yMin);
+                    if (score > currentScore) {
+                        if (current != null) try { current.recycle(); } catch(Exception ignored) {}
+                        current = AccessibilityNodeInfo.obtain(n); currentScore = score;
+                    }
+                }
+            }
+            for (int i=0;i<n.getChildCount();i++) {
+                AccessibilityNodeInfo c=n.getChild(i);
+                if(c!=null) {
+                    current = findBottomControlRecursive(c,current,left,yMin,win,currentScore);
+                    if(current!=null){Rect cr=new Rect();current.getBoundsInScreen(cr);currentScore=scoreBottomControl(cr,left,win,yMin);}
+                    try{c.recycle();}catch(Exception ignored){}
+                }
+            }
+        } catch(Exception ignored) {}
+        return current;
+    }
+
+    private float scoreBottomControl(Rect r, boolean left, Rect win, float yMin) {
+        float y = (r.centerY()-yMin)/Math.max(1f, win.bottom-yMin);
+        float x = (r.centerX()-win.left)/Math.max(1f, win.width());
+        float side = left ? (1f-x) : x;
+        return y*100f + side*100f + Math.min(20f,r.width()*0.1f);
+    }
+
     private boolean clickFileButton() {
         ArrayList<AccessibilityNodeInfo> candidates = new ArrayList<>();
         ArrayList<AccessibilityNodeInfo> roots = roots();
@@ -148,6 +208,22 @@ public class KeyboardAccessibilityService extends AccessibilityService {
         // Last resort for WebViews that expose neither the attachment node nor
         // an editable composer: use the lower-left control position of the
         // active site window. This still taps the site's own UI.
+        // WebView fallback: locate the actual clickable control in the lower composer
+        // rather than guessing a fixed screen coordinate. Leftmost lower control is
+        // normally the site's attachment/+ button.
+        roots = roots();
+        AccessibilityNodeInfo siteFile = findBottomLeftSiteControl(roots);
+        recycleRootsExcept(roots, siteFile);
+        if (siteFile != null) {
+            boolean ok = performClick(siteFile);
+            try { siteFile.recycle(); } catch(Exception ignored) {}
+            if (ok) {
+                handler.postDelayed(this::clickFileMenuItem, 300);
+                handler.postDelayed(this::clickFileMenuItem, 700);
+                handler.postDelayed(this::clickFileMenuItem, 1200);
+                return true;
+            }
+        }
         Rect area=findTargetScreenBounds();
         if(area.width()>160 && area.height()>120){
             float baseX=area.left+Math.max(24,Math.min(64,area.width()*0.09f));
@@ -391,6 +467,13 @@ public class KeyboardAccessibilityService extends AccessibilityService {
     private boolean hasClickAction(AccessibilityNodeInfo n){try{for(AccessibilityNodeInfo.AccessibilityAction a:n.getActionList())if(a.getId()==AccessibilityNodeInfo.ACTION_CLICK)return true;}catch(Exception ignored){}return false;}
     private String lower(CharSequence s){return s==null?"":s.toString().trim().toLowerCase(Locale.ROOT);}
     private String nodeText(AccessibilityNodeInfo n){if(n==null)return "";return (lower(n.getText())+" "+lower(n.getContentDescription())+" "+lower(n.getViewIdResourceName())).trim();}
-    private void recycleRoots(ArrayList<AccessibilityNodeInfo> roots){for(AccessibilityNodeInfo r:roots)try{r.recycle();}catch(Exception ignored){}}
+        private void recycleRootsExcept(ArrayList<AccessibilityNodeInfo> roots, AccessibilityNodeInfo keep) {
+        for (AccessibilityNodeInfo r : roots) {
+            if (r == null || r == keep) continue;
+            try { r.recycle(); } catch(Exception ignored) {}
+        }
+    }
+
+private void recycleRoots(ArrayList<AccessibilityNodeInfo> roots){for(AccessibilityNodeInfo r:roots)try{r.recycle();}catch(Exception ignored){}}
     private void recycleExcept(ArrayList<AccessibilityNodeInfo> list,AccessibilityNodeInfo keep){for(AccessibilityNodeInfo n:list)if(n!=keep)try{n.recycle();}catch(Exception ignored){}}
 }

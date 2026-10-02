@@ -38,6 +38,7 @@ public class ScreenCaptureService extends Service {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private int width, height;
     private int densityDpi;
+    private long lastFrameMs = 0L;
 
     @Override public void onCreate() {
         super.onCreate();
@@ -95,6 +96,12 @@ public class ScreenCaptureService extends Service {
     }
 
     private void onImageAvailable(ImageReader source) {
+        long now = android.os.SystemClock.uptimeMillis();
+        if (now - lastFrameMs < 70L) {
+            try { Image skip = source.acquireLatestImage(); if (skip != null) skip.close(); } catch (Exception ignored) {}
+            return;
+        }
+        lastFrameMs = now;
         Image image = null;
         Bitmap full = null;
         try {

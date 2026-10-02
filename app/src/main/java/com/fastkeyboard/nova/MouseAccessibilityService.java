@@ -55,6 +55,8 @@ public class MouseAccessibilityService extends AccessibilityService {
     private WindowManager.LayoutParams magnifierLp;
     private Bitmap magnifierBitmap;
     private boolean magnifierEnabled=false;
+    private boolean magnifierCapturePending=false;
+    private long lastMagnifierCaptureMs=0L;
     private boolean selectMode=false;
     private String lastTargetPackage="";
     private int cursorSizeStep=1;
@@ -402,6 +404,10 @@ public class MouseAccessibilityService extends AccessibilityService {
 
     private void updateMagnifier() {
         if(!magnifierEnabled || Build.VERSION.SDK_INT<30) return;
+        long now = android.os.SystemClock.uptimeMillis();
+        if (magnifierCapturePending || now - lastMagnifierCaptureMs < 70L) return;
+        magnifierCapturePending = true;
+        lastMagnifierCaptureMs = now;
         try {
             Executor ex = command -> handler.post(command);
             takeScreenshot(Display.DEFAULT_DISPLAY, ex, new TakeScreenshotCallback() {
@@ -429,14 +435,16 @@ public class MouseAccessibilityService extends AccessibilityService {
                     crop.recycle();
                     Bitmap finalBitmap=scaled;
                     handler.post(()->showMagnifierBitmap(finalBitmap));
-                } catch(Exception ignored) {} finally {
+                } catch(Exception ignored) {
+                } finally {
+                    magnifierCapturePending = false;
                     if(source!=null)source.recycle();
                     if(hb!=null)hb.close();
                 }
                 }
-                @Override public void onFailure(int errorCode) { }
+                @Override public void onFailure(int errorCode) { magnifierCapturePending = false; }
             });
-        } catch(Exception ignored) {}
+        } catch(Exception ignored) { magnifierCapturePending = false; }
     }
 
     private void showMagnifierBitmap(Bitmap bitmap) {
@@ -459,13 +467,18 @@ public class MouseAccessibilityService extends AccessibilityService {
         magnifierBitmap=bitmap;
         ((ImageView)magnifierView).setImageBitmap(bitmap);
         if(old!=null && old!=bitmap){ try{old.recycle();}catch(Exception ignored){} }
-        // Keep the zoom lens centered on the pointer position. The source crop is
-        // centered on the pointer, so this is a true point-zoom rather than a
-        // general page/screen zoom.
+        // Keep the small lens beside the pointer rather than directly over it.
+        // This prevents the lens itself from entering the captured source area
+        // and creating a recursive/self-magnifying image.
         float cx = x + cursorSize / 2f;
         float cy = y + cursorSize / 2f;
-        magnifierLp.x=Math.max(0,Math.min(screenW-magnifierLp.width,Math.round(cx-magnifierLp.width/2f)));
-        magnifierLp.y=Math.max(0,Math.min(screenH-magnifierLp.height,Math.round(cy-magnifierLp.height/2f)));
+        int gap = dp(10);
+        int lx = Math.round(cx + gap);
+        int ly = Math.round(cy + gap);
+        if (lx + magnifierLp.width > screenW) lx = Math.round(cx - gap - magnifierLp.width);
+        if (ly + magnifierLp.height > screenH) ly = Math.round(cy - gap - magnifierLp.height);
+        magnifierLp.x=Math.max(0,Math.min(screenW-magnifierLp.width,lx));
+        magnifierLp.y=Math.max(0,Math.min(screenH-magnifierLp.height,ly));
         try{wm.updateViewLayout(magnifierView,magnifierLp);}catch(Exception ignored){}
     }
 
@@ -860,6 +873,66 @@ public class MouseAccessibilityService extends AccessibilityService {
         handler.postDelayed(this::clickFileMenuItem, 1500);
     }
 
+    private AccessibilityNodeInfo findBottomLeftSiteControl(ArrayList<AccessibilityNodeInfo> roots) {
+        AccessibilityNodeInfo best = null; float bestScore = Float.NEGATIVE_INFINITY;
+        Rect win = findTargetScreenBounds();
+        float yMin = win.top + win.height() * 0.68f;
+        for (AccessibilityNodeInfo root : roots) {
+            best = findBottomControlRecursive(root, best, true, yMin, win, bestScore);
+            if (best != null) {
+                Rect br = new Rect(); best.getBoundsInScreen(br);
+                bestScore = scoreBottomControl(br, true, win, yMin);
+            }
+        }
+        return best;
+    }
+
+    private AccessibilityNodeInfo findBottomRightSiteControl(ArrayList<AccessibilityNodeInfo> roots) {
+        AccessibilityNodeInfo best = null; float bestScore = Float.NEGATIVE_INFINITY;
+        Rect win = findTargetScreenBounds();
+        float yMin = win.top + win.height() * 0.68f;
+        for (AccessibilityNodeInfo root : roots) {
+            best = findBottomControlRecursive(root, best, false, yMin, win, bestScore);
+            if (best != null) {
+                Rect br = new Rect(); best.getBoundsInScreen(br);
+                bestScore = scoreBottomControl(br, false, win, yMin);
+            }
+        }
+        return best;
+    }
+
+    private AccessibilityNodeInfo findBottomControlRecursive(AccessibilityNodeInfo n, AccessibilityNodeInfo current, boolean left, float yMin, Rect win, float currentScore) {
+        if (n == null) return current;
+        try {
+            if (n.isVisibleToUser() && n.isEnabled() && n.isClickable()) {
+                Rect r = new Rect(); n.getBoundsInScreen(r);
+                if (r.width() >= 6 && r.height() >= 6 && r.centerY() >= yMin && r.bottom <= win.bottom + 20) {
+                    float score = scoreBottomControl(r, left, win, yMin);
+                    if (score > currentScore) {
+                        if (current != null) try { current.recycle(); } catch(Exception ignored) {}
+                        current = AccessibilityNodeInfo.obtain(n); currentScore = score;
+                    }
+                }
+            }
+            for (int i=0;i<n.getChildCount();i++) {
+                AccessibilityNodeInfo c=n.getChild(i);
+                if(c!=null) {
+                    current = findBottomControlRecursive(c,current,left,yMin,win,currentScore);
+                    if(current!=null){Rect cr=new Rect();current.getBoundsInScreen(cr);currentScore=scoreBottomControl(cr,left,win,yMin);}
+                    try{c.recycle();}catch(Exception ignored){}
+                }
+            }
+        } catch(Exception ignored) {}
+        return current;
+    }
+
+    private float scoreBottomControl(Rect r, boolean left, Rect win, float yMin) {
+        float y = (r.centerY()-yMin)/Math.max(1f, win.bottom-yMin);
+        float x = (r.centerX()-win.left)/Math.max(1f, win.width());
+        float side = left ? (1f-x) : x;
+        return y*100f + side*100f + Math.min(20f,r.width()*0.1f);
+    }
+
     private boolean clickFileButton() {
         if (Build.VERSION.SDK_INT < 21) return false;
 
@@ -913,6 +986,22 @@ public class MouseAccessibilityService extends AccessibilityService {
                 handler.postDelayed(this::clickFileMenuItem, 1900);
             }
             return tapped;
+        }
+        // WebView fallback: locate the actual clickable control in the lower composer
+        // rather than guessing a fixed screen coordinate. Leftmost lower control is
+        // normally the site's attachment/+ button.
+        roots = roots();
+        AccessibilityNodeInfo siteFile = findBottomLeftSiteControl(roots);
+        recycleRootsExcept(roots, siteFile);
+        if (siteFile != null) {
+            boolean ok = performClick(siteFile);
+            try { siteFile.recycle(); } catch(Exception ignored) {}
+            if (ok) {
+                handler.postDelayed(this::clickFileMenuItem, 300);
+                handler.postDelayed(this::clickFileMenuItem, 700);
+                handler.postDelayed(this::clickFileMenuItem, 1200);
+                return true;
+            }
         }
         Rect area=findTargetScreenBounds();
         if(area.width()>160 && area.height()>120){
@@ -1066,6 +1155,16 @@ public class MouseAccessibilityService extends AccessibilityService {
         for (android.view.accessibility.AccessibilityNodeInfo root : roots2) findComposerBounds(root, composer);
         for (android.view.accessibility.AccessibilityNodeInfo root : roots2) try { root.recycle(); } catch (Exception ignored) {}
         if (composer.width() <= 40 || composer.height() <= 20) {
+            // WebView fallback: locate the actual clickable control at the lower-right
+            // edge of the active composer instead of relying on a fixed coordinate.
+            roots2 = targetRoots();
+            AccessibilityNodeInfo siteSend = findBottomRightSiteControl(roots2);
+            recycleRootsExcept(roots2, siteSend);
+            if (siteSend != null) {
+                boolean ok = performNodeClick(siteSend);
+                try { siteSend.recycle(); } catch(Exception ignored) {}
+                if (ok) return true;
+            }
             Rect area=findTargetScreenBounds();
             if(area.width()>160 && area.height()>120){
                 float bx=area.right-Math.max(28f,Math.min(64f,area.width()*0.09f));
@@ -1452,3 +1551,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         super.onDestroy();
     }
 }
+
+    private void recycleRootsExcept(ArrayList<AccessibilityNodeInfo> roots, AccessibilityNodeInfo keep) {
+        for (AccessibilityNodeInfo r : roots) { if (r != null && r != keep) try { r.recycle(); } catch(Exception ignored) {} }
+    }
