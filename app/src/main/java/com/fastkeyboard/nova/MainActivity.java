@@ -45,6 +45,17 @@ public class MainActivity extends Activity {
         usage.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)));
         box.addView(usage, new LinearLayout.LayoutParams(-1, 64));
 
+        Button modify = new Button(this);
+        modify.setText("دسترسی Modify system settings");
+        modify.setOnClickListener(v -> {
+            try {
+                Intent i = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS);
+                i.setData(android.net.Uri.parse("package:" + getPackageName()));
+                startActivity(i);
+            } catch (Exception ignored) {}
+        });
+        box.addView(modify, new LinearLayout.LayoutParams(-1, 64));
+
         Button accessibility = new Button(this);
         accessibility.setText("فعال‌سازی موس سیستمی");
         accessibility.setOnClickListener(v ->

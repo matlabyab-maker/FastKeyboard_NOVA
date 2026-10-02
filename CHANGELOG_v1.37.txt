@@ -1,0 +1,5 @@
+Fast Keyboard Nova v1.37
+
+- Added a bright yellow press highlight to the mouse-window buttons.
+- Close, Drag, Left Click, Left/Right/Up/Down and Point Zoom now visibly light yellow while pressed.
+- The supplied mouse reference artwork and button positions are unchanged.

@@ -1,0 +1,9 @@
+FastKeyboard_NOVA v1.36
+- Point Zoom now uses Android Accessibility window magnification on API 33+ with a pointer-centered window; legacy magnification fallback remains on older Android versions.
+- Added magnification control capability to the mouse Accessibility service.
+- Mouse pointer movement from the touch field is smoother and less sensitive; arrow step reduced.
+- File/Send targeting now tracks the last non-FastKeyboard foreground package and filters Accessibility windows toward that app.
+- File attachment coordinate fallback now tries a small lower-left cluster and continues checking the site's own attachment menu.
+- Send coordinate fallback now tries a small lower-right cluster.
+- Added WRITE_SETTINGS permission and a direct MainActivity button for the Android Modify system settings page, as requested for testing. This permission is not used as a substitute for the site's own file/send UI.
+- No generic Android file picker was added.

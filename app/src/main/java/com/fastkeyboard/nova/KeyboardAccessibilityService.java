@@ -5,6 +5,7 @@ import android.accessibilityservice.GestureDescription;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.graphics.Path;
 import android.graphics.Rect;
+import android.provider.Settings;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -23,6 +24,7 @@ public class KeyboardAccessibilityService extends AccessibilityService {
     private static KeyboardAccessibilityService instance;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private int screenH;
+    private String lastTargetPackage = "";
 
     public static KeyboardAccessibilityService getInstance() { return instance; }
 
@@ -39,7 +41,15 @@ public class KeyboardAccessibilityService extends AccessibilityService {
         }
     }
 
-    @Override public void onAccessibilityEvent(AccessibilityEvent event) { }
+    @Override public void onAccessibilityEvent(AccessibilityEvent event) {
+        try {
+            CharSequence pkg = event == null ? null : event.getPackageName();
+            if (pkg != null) {
+                String p = pkg.toString();
+                if (!getPackageName().equals(p)) lastTargetPackage = p;
+            }
+        } catch (Exception ignored) { }
+    }
     @Override public void onInterrupt() { }
     @Override public void onDestroy() {
         instance = null;
@@ -59,15 +69,25 @@ public class KeyboardAccessibilityService extends AccessibilityService {
     private ArrayList<AccessibilityNodeInfo> roots() {
         ArrayList<AccessibilityNodeInfo> roots = new ArrayList<>();
         String own = getPackageName();
+        String target = lastTargetPackage;
         AccessibilityNodeInfo active = getRootInActiveWindow();
         if (active != null && !own.equals(active.getPackageName())) roots.add(active);
         try {
             for (AccessibilityWindowInfo w : getWindows()) {
                 if (w == null) continue;
                 AccessibilityNodeInfo root = w.getRoot();
-                if (root != null && !own.equals(root.getPackageName())) roots.add(root);
+                if (root == null || own.equals(root.getPackageName())) continue;
+                roots.add(root);
             }
         } catch (Exception ignored) { }
+        if (!target.isEmpty()) {
+            ArrayList<AccessibilityNodeInfo> filtered = new ArrayList<>();
+            for (AccessibilityNodeInfo r : roots) {
+                if (r != null && target.equals(r.getPackageName())) filtered.add(r);
+                else if (r != null) try { r.recycle(); } catch (Exception ignored) { }
+            }
+            if (!filtered.isEmpty()) return filtered;
+        }
         return roots;
     }
 
@@ -114,19 +134,18 @@ public class KeyboardAccessibilityService extends AccessibilityService {
             }
         }
         if (composer.width() > 80 && composer.height() > 20) {
-            // Attachment controls in WebView-based composers are commonly just
-            // inside the lower-left edge of the composer. Do not tap to the
-            // left of the composer (that can miss the site's own button).
-            float x = composer.left + Math.max(20, Math.min(46, composer.height() * 0.55f));
-            float y = composer.bottom - Math.max(18, Math.min(40, composer.height() * 0.32f));
-            boolean tapped = tapScreenPoint(x, y);
-            if (tapped) {
-                handler.postDelayed(() -> tapScreenPoint(x + 18, y), 180);
-                handler.postDelayed(this::clickFileMenuItem, 300);
-                handler.postDelayed(this::clickFileMenuItem, 650);
-                handler.postDelayed(this::clickFileMenuItem, 1000);
-                handler.postDelayed(this::clickFileMenuItem, 1400);
-            }
+            // The site's attachment button is normally the first control inside
+            // the lower-left edge of the composer. Try a small cluster rather
+            // than assuming one exact pixel.
+            float baseX = composer.left + Math.max(18, Math.min(52, composer.height() * 0.58f));
+            float baseY = composer.bottom - Math.max(16, Math.min(44, composer.height() * 0.34f));
+            boolean tapped = tapScreenPoint(baseX, baseY);
+            handler.postDelayed(() -> tapScreenPoint(baseX + 12, baseY), 120);
+            handler.postDelayed(() -> tapScreenPoint(baseX + 24, baseY), 240);
+            handler.postDelayed(this::clickFileMenuItem, 360);
+            handler.postDelayed(this::clickFileMenuItem, 700);
+            handler.postDelayed(this::clickFileMenuItem, 1100);
+            handler.postDelayed(this::clickFileMenuItem, 1500);
             return tapped;
         }
         return false;
@@ -242,13 +261,12 @@ public class KeyboardAccessibilityService extends AccessibilityService {
         if(clickChild!=null){boolean ok=performClick(clickChild);try{clickChild.recycle();}catch(Exception ignored){}if(ok)return true;}
 
         if(composer.width()>40&&composer.height()>20){
-            float x=composer.right-Math.max(26,Math.min(58,composer.height()*0.60f));
-            float y=composer.bottom-Math.max(18,Math.min(42,composer.height()*0.34f));
-            boolean tapped=tapScreenPoint(x,y);
-            if(tapped){
-                handler.postDelayed(() -> tapScreenPoint(x-18,y),180);
-                handler.postDelayed(() -> tapScreenPoint(x,y-18),360);
-            }
+            float baseX=composer.right-Math.max(22,Math.min(72,composer.height()*0.72f));
+            float baseY=composer.bottom-Math.max(16,Math.min(48,composer.height()*0.40f));
+            boolean tapped=tapScreenPoint(baseX,baseY);
+            handler.postDelayed(() -> tapScreenPoint(baseX-12,baseY),120);
+            handler.postDelayed(() -> tapScreenPoint(baseX-24,baseY),240);
+            handler.postDelayed(() -> tapScreenPoint(baseX,baseY-14),360);
             return tapped;
         }
         return false;

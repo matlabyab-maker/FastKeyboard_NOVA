@@ -148,6 +148,17 @@ public class MouseAccessibilityService extends AccessibilityService {
         final View resize = transparentHit(panel, 0, 0, 70, 45, hitViews);
         final View resizeBottomRight = transparentHit(panel, 600, 250, 39, 37, hitViews);
 
+        // Every mouse button flashes with a bright yellow press highlight while it is touched.
+        // The supplied mouse artwork remains unchanged; the highlight is only an interactive overlay.
+        attachYellowPress(close);
+        attachYellowPress(drag);
+        attachYellowPress(leftClick);
+        attachYellowPress(moveLeft);
+        attachYellowPress(moveRight);
+        attachYellowPress(moveUp);
+        attachYellowPress(moveDown);
+        attachYellowPress(pointZoom);
+
         // Reposition hit areas whenever the panel size changes, preserving the exact
         // proportions of the supplied image on different displays.
         panel.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{
@@ -176,7 +187,7 @@ public class MouseAccessibilityService extends AccessibilityService {
             if (e.getAction()==MotionEvent.ACTION_MOVE && padMoving[0]) {
                 float dx=e.getRawX()-padLast[0], dy=e.getRawY()-padLast[1];
                 if (Math.abs(dx)>=0.5f || Math.abs(dy)>=0.5f) {
-                    moveRelative(dx*2f,dy*2f);
+                    moveRelative(dx*1.15f,dy*1.15f);
                     padLast[0]=e.getRawX(); padLast[1]=e.getRawY();
                 }
                 return true;
@@ -190,6 +201,13 @@ public class MouseAccessibilityService extends AccessibilityService {
         // Drag moves the Quick Settings mouse window itself.
         final float[] dragLast = {0f,0f};
         drag.setOnTouchListener((v,e)->{
+            if (e.getAction()==MotionEvent.ACTION_DOWN) {
+                android.graphics.drawable.ColorDrawable glow = new android.graphics.drawable.ColorDrawable(0xFFFFE45C);
+                glow.setAlpha(155);
+                v.setForeground(glow);
+            } else if (e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL) {
+                v.setForeground(null);
+            }
             if (mousePanelLp == null || wm == null) return true;
             if (e.getAction()==MotionEvent.ACTION_DOWN) {
                 dragLast[0]=e.getRawX(); dragLast[1]=e.getRawY(); return true;
@@ -210,14 +228,14 @@ public class MouseAccessibilityService extends AccessibilityService {
         leftClick.setOnClickListener(v -> click(false));
 
         // The four arrow buttons perform direct cursor movement.
-        final float arrowStep = Math.max(dp(24), 48f * getResources().getDisplayMetrics().density);
+        final float arrowStep = Math.max(dp(16), 30f * getResources().getDisplayMetrics().density);
         moveLeft.setOnClickListener(v -> moveRelative(-arrowStep, 0));
         moveRight.setOnClickListener(v -> moveRelative(arrowStep, 0));
         moveUp.setOnClickListener(v -> moveRelative(0, -arrowStep));
         moveDown.setOnClickListener(v -> moveRelative(0, arrowStep));
 
         // "Point Zoom" magnifies only the screen area immediately under the mouse pointer.
-        pointZoom.setOnClickListener(v -> { magnifierEnabled = true; updateMagnifier(); handler.postDelayed(this::updateMagnifier, 180); });
+        pointZoom.setOnClickListener(v -> toggleMagnifier());
 
         // One functional resize grip at the same top-left location shown in the image.
         final float[] resizeLast = {0f,0f};
@@ -275,6 +293,20 @@ public class MouseAccessibilityService extends AccessibilityService {
         wm.addView(panel,mousePanelLp);
     }
 
+    private void attachYellowPress(View v){
+        if(v==null) return;
+        v.setOnTouchListener((view,e)->{
+            if(e.getAction()==MotionEvent.ACTION_DOWN){
+                android.graphics.drawable.ColorDrawable glow = new android.graphics.drawable.ColorDrawable(0xFFFFE45C);
+                glow.setAlpha(155);
+                view.setForeground(glow);
+            } else if(e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL){
+                view.setForeground(null);
+            }
+            return false;
+        });
+    }
+
     private View transparentHit(FrameLayout parent,int x,int y,int w,int h,java.util.ArrayList<View> list){
         View v=new View(this);
         v.setBackgroundColor(Color.TRANSPARENT);
@@ -328,8 +360,60 @@ public class MouseAccessibilityService extends AccessibilityService {
     }
 
     private void toggleMagnifier() {
-        magnifierEnabled=!magnifierEnabled;
-        if(magnifierEnabled) updateMagnifier(); else hideMagnifier();
+        if (magnifierEnabled) {
+            magnifierEnabled = false;
+            try { getMagnificationController().reset(false); } catch (Exception ignored) {}
+            hideMagnifier();
+            return;
+        }
+
+        final float cx = x + cursorSize / 2f;
+        final float cy = y + cursorSize / 2f;
+        boolean enabled = false;
+
+        // Point Zoom must magnify the area around the pointer. On Android 10
+        // the public Accessibility magnification controller is the reliable
+        // mechanism for doing this; it does not zoom the application itself.
+        if (Build.VERSION.SDK_INT >= 24) {
+            try {
+                android.accessibilityservice.AccessibilityService.MagnificationController mc =
+                        getMagnificationController();
+                mc.setScale(2.5f, false);
+                mc.setCenter(cx, cy, false);
+                handler.postDelayed(() -> {
+                    try {
+                        if (magnifierEnabled) {
+                            mc.setScale(2.5f, false);
+                            mc.setCenter(x + cursorSize / 2f, y + cursorSize / 2f, false);
+                        }
+                    } catch (Exception ignored) {}
+                }, 120);
+                enabled = true;
+            } catch (Exception ignored) {}
+        }
+
+        // Android 13+ fallback: use the system window magnifier if fullscreen
+        // magnification could not be controlled.
+        if (!enabled && Build.VERSION.SDK_INT >= 33) {
+            try {
+                android.accessibilityservice.MagnificationConfig cfg =
+                        new android.accessibilityservice.MagnificationConfig.Builder()
+                                .setMode(android.accessibilityservice.MagnificationConfig.MAGNIFICATION_MODE_WINDOW)
+                                .setScale(2.5f)
+                                .setCenterX(cx)
+                                .setCenterY(cy)
+                                .build();
+                enabled = getMagnificationController().setMagnificationConfig(cfg, false);
+            } catch (Exception ignored) {}
+        }
+
+        if (enabled) {
+            magnifierEnabled = true;
+        } else {
+            // Screenshot fallback is only possible on Android 11+.
+            magnifierEnabled = true;
+            if (Build.VERSION.SDK_INT >= 30) updateMagnifier();
+        }
     }
 
     private void updateMagnifier() {
@@ -1181,7 +1265,17 @@ public class MouseAccessibilityService extends AccessibilityService {
         lp.y = Math.round(y);
         wm.updateViewLayout(cursor, lp);
         if (autoTargetMode && !dragMode) snapToNearbyClickable();
-        if (magnifierEnabled) updateMagnifier();
+        if (magnifierEnabled) {
+            boolean moved = false;
+            if (Build.VERSION.SDK_INT >= 24) {
+                try {
+                    getMagnificationController().setCenter(
+                            x + cursorSize / 2f, y + cursorSize / 2f, false);
+                    moved = true;
+                } catch (Exception ignored) {}
+            }
+            if (!moved && Build.VERSION.SDK_INT >= 30) updateMagnifier();
+        }
         if(dragMode && Build.VERSION.SDK_INT>=24){
             dispatchSwipe(oldX+3f,oldY+3f,x+3f,y+3f,12);
         }
