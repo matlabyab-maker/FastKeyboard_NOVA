@@ -1,0 +1,7 @@
+FastKeyboard_NOVA v1.7
+- و now has long-press variants in the third Persian row.
+- Backspace press/repeat has a system beep.
+- Paste moved to the first toolbar position on the left.
+- 100 History is a vertically scrollable list with one clipboard item per row.
+- Mouse panel controls use explicit touch handling; close, pointer size, auto-target, magnifier, right click and Select are wired for touch.
+- Mouse panel keeps drag handling and prevents touch from being forwarded by the panel itself.

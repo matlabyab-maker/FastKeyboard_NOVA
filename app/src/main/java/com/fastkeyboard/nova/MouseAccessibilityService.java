@@ -96,6 +96,8 @@ public class MouseAccessibilityService extends AccessibilityService {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(4),dp(4),dp(4),dp(4));
+        root.setClickable(true);
+        root.setFocusable(false);
         GradientDrawable panelBg = new GradientDrawable();
         panelBg.setColor(Color.argb(245, 250, 250, 250));
         panelBg.setStroke(dp(2), Color.rgb(45,45,55));
@@ -133,11 +135,13 @@ public class MouseAccessibilityService extends AccessibilityService {
         dragHandle.setBackgroundColor(LIGHT_CREAM);
         closeButton.setBackgroundColor(LIGHT_ORANGE);
         root.addView(header, new LinearLayout.LayoutParams(-1, dp(62)));
-        closeButton.setOnClickListener(v -> { flashAllMouseButtons(LIGHT_ORANGE); hideMouseOverlay(); });
+        installMouseTap(closeButton, LIGHT_ORANGE, this::hideMouseOverlay);
 
         final float[] panelLast = {0f,0f};
         final boolean[] panelMoving = {false};
         final boolean[] panelDragged = {false};
+        dragHandle.setEnabled(true);
+        dragHandle.setClickable(true);
         dragHandle.setOnTouchListener((v,e)->{
             if (mousePanelLp == null || wm == null) return true;
             if (e.getAction()==MotionEvent.ACTION_DOWN) {
@@ -228,11 +232,10 @@ public class MouseAccessibilityService extends AccessibilityService {
         row.addView(select,new LinearLayout.LayoutParams(0,58,1.25f));
         root.addView(row);
 
-        pointerSize.setOnClickListener(v -> { flashAllMouseButtons(LIGHT_CREAM); cycleCursorSize(); });
-        magnify.setOnClickListener(v -> { flashAllMouseButtons(LIGHT_CREAM); toggleMagnifier(); });
-        auto.setOnClickListener(v -> { flashAllMouseButtons(LIGHT_GREEN); toggleAutoTargetMode(); });
-        select.setOnClickListener(v -> {
-            flashAllMouseButtons(LIGHT_YELLOW);
+        installMouseTap(pointerSize, LIGHT_CREAM, this::cycleCursorSize);
+        installMouseTap(magnify, LIGHT_CREAM, this::toggleMagnifier);
+        installMouseTap(auto, LIGHT_GREEN, this::toggleAutoTargetMode);
+        installMouseTap(select, LIGHT_YELLOW, () -> {
             selectMode=!selectMode;
             select.setText(selectMode ? "Select ✓" : "Select");
             if (!selectMode) dragMode=false;
@@ -252,7 +255,7 @@ public class MouseAccessibilityService extends AccessibilityService {
             }
             return true;
         });
-        right.setOnClickListener(v->{ flashAllMouseButtons(LIGHT_BLUE); click(true); });
+        installMouseTap(right, LIGHT_BLUE, () -> click(true));
 
         LinearLayout transparencyRow = new LinearLayout(this);
         transparencyRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -304,13 +307,24 @@ public class MouseAccessibilityService extends AccessibilityService {
         mousePanelLp = new WindowManager.LayoutParams(
             initialW, initialH,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT);
         mousePanelLp.gravity = Gravity.TOP | Gravity.LEFT;
         mousePanelLp.x = Math.max(0, screenW - initialW - dp(8));
         mousePanelLp.y = dp(72);
         panel.setElevation(30f);
         wm.addView(panel, mousePanelLp);
+    }
+
+    private void installMouseTap(Button b, int color, final Runnable action){
+        b.setEnabled(true);
+        b.setClickable(true);
+        b.setOnTouchListener((v,e)->{
+            if(e.getAction()==MotionEvent.ACTION_DOWN){ flashAllMouseButtons(color); return true; }
+            if(e.getAction()==MotionEvent.ACTION_UP){ if(action!=null) action.run(); return true; }
+            if(e.getAction()==MotionEvent.ACTION_CANCEL){ return true; }
+            return true;
+        });
     }
 
     private void flashAllMouseButtons(int color){
