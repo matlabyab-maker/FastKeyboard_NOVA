@@ -41,6 +41,9 @@ public class MouseAccessibilityService extends AccessibilityService {
     private View mousePanel;
     private WindowManager.LayoutParams mousePanelLp;
     private boolean autoTargetMode = false;
+    private AccessibilityNodeInfo snappedTarget;
+    private android.graphics.Rect snappedTargetRect;
+    private boolean snapReleased = true;
     private Button autoTargetButton;
     private View magnifierView;
     private WindowManager.LayoutParams magnifierLp;
@@ -410,9 +413,9 @@ public class MouseAccessibilityService extends AccessibilityService {
             autoTargetButton.setText(autoTargetMode ? "حرکت خودکار: روشن" : "حرکت خودکار: خاموش");
         }
         handler.removeCallbacks(autoTargetRunnable);
+        releaseSnap();
         if (autoTargetMode) {
-            // Do not jump to distant controls. Snapping happens only when the
-            // cursor is within about 1 mm of a clickable item's bounds.
+            // Small, precise snap zone; the cursor is never pulled across the screen.
             snapToNearbyClickable();
         }
     }
@@ -420,11 +423,21 @@ public class MouseAccessibilityService extends AccessibilityService {
     private void stopAutoTargetMode() {
         autoTargetMode = false;
         handler.removeCallbacks(autoTargetRunnable);
+        releaseSnap();
         if (autoTargetButton != null) autoTargetButton.setText("حرکت خودکار: خاموش");
     }
 
     private void snapToNearbyClickable() {
-        if (!autoTargetMode || cursor == null) return;
+        if (!autoTargetMode || cursor == null || dragMode) return;
+        if (!snapReleased && snappedTargetRect != null) {
+            float cx = x + cursorSize / 2f;
+            float cy = y + cursorSize / 2f;
+            float dx = Math.max(snappedTargetRect.left - cx, Math.max(0f, cx - snappedTargetRect.right));
+            float dy = Math.max(snappedTargetRect.top - cy, Math.max(0f, cy - snappedTargetRect.bottom));
+            float dist = (float)Math.hypot(dx, dy);
+            if (dist < 24f) return;
+            releaseSnap();
+        }
         android.view.accessibility.AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) return;
         java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> targets = new java.util.ArrayList<>();
@@ -435,14 +448,13 @@ public class MouseAccessibilityService extends AccessibilityService {
         }
         if (targets.isEmpty()) return;
 
-        // Requested snap radius: 30 mm from the clickable bounds.
-        // Use the physical display density so the distance is approximately
-        // the same physical size across different screens.
+        // Precise snap radius: about 3 mm, not 30 mm. The old 30 mm zone was
+        // far too strong on phones and made nearby controls capture the cursor.
         android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
         float pxPerMmX = Math.max(1f, dm.xdpi / 25.4f);
         float pxPerMmY = Math.max(1f, dm.ydpi / 25.4f);
-        float thresholdX = pxPerMmX * 30f;
-        float thresholdY = pxPerMmY * 30f;
+        float thresholdX = pxPerMmX * 3f;
+        float thresholdY = pxPerMmY * 3f;
         float hx = x + 2f;
         float hy = y + 2f;
         android.view.accessibility.AccessibilityNodeInfo best = null;
@@ -467,6 +479,12 @@ public class MouseAccessibilityService extends AccessibilityService {
                 }
             }
             if (best != null && bestRect != null) {
+                // Lock the first snapped target until the cursor is deliberately
+                // dragged away. This prevents immediate re-capture of the same control.
+                releaseSnap();
+                snappedTarget = AccessibilityNodeInfo.obtain(best);
+                snappedTargetRect = new android.graphics.Rect(bestRect);
+                snapReleased = false;
                 // Put the hotspot on the nearest point inside the clickable bounds.
                 float nx = Math.max(bestRect.left, Math.min(hx, bestRect.right));
                 float ny = Math.max(bestRect.top, Math.min(hy, bestRect.bottom));
@@ -806,80 +824,57 @@ public class MouseAccessibilityService extends AccessibilityService {
 
     private boolean clickSendButton() {
         if (Build.VERSION.SDK_INT < 21) return false;
-
         final String ownPackage = getPackageName();
-        java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> candidates =
-                new java.util.ArrayList<>();
-
-        // Prefer the active window, then inspect other interactive windows.
+        java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> candidates = new java.util.ArrayList<>();
         android.view.accessibility.AccessibilityNodeInfo active = getRootInActiveWindow();
-        if (active != null && !ownPackage.equals(active.getPackageName())) {
-            collectSendCandidates(active, candidates);
-        }
-        if (candidates.isEmpty() && Build.VERSION.SDK_INT >= 21) {
-            try {
-                for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
-                    if (w == null) continue;
-                    android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
-                    if (root == null || ownPackage.equals(root.getPackageName())) continue;
-                    collectSendCandidates(root, candidates);
-                }
-            } catch (Exception ignored) {}
-        }
-
+        if (active != null && !ownPackage.equals(active.getPackageName())) collectSendCandidates(active, candidates);
+        try {
+            for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+                if (w == null) continue;
+                android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
+                if (root == null || ownPackage.equals(root.getPackageName())) continue;
+                collectSendCandidates(root, candidates);
+            }
+        } catch (Exception ignored) {}
         android.view.accessibility.AccessibilityNodeInfo best = chooseBestSendCandidate(candidates);
         for (android.view.accessibility.AccessibilityNodeInfo n : candidates) {
             if (n != best) { try { n.recycle(); } catch (Exception ignored) {} }
         }
-
-        // First try the real accessible Send control.
-        boolean ok = false;
         if (best != null) {
             try {
-                if (best.isEnabled()) {
-                    ok = best.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
-                    if (!ok && Build.VERSION.SDK_INT >= 21) {
-                        for (android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction a : best.getActionList()) {
-                            if (a.getId() == android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) {
-                                ok = best.performAction(a.getId());
-                                break;
-                            }
-                        }
-                    }
+                if (best.isEnabled() && best.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)) {
+                    best.recycle(); return true;
                 }
             } catch (Exception ignored) {}
             try { best.recycle(); } catch (Exception ignored) {}
-            if (ok) return true;
         }
-
-        // Some browser/WebView versions expose ChatGPT's blue Send icon without
-        // any text or content-description. In that case locate the message
-        // composer and tap its lower-right action area with an accessibility gesture.
-        return tapComposerSendFallback(active);
+        // WebView often exposes no accessible Send node. Search every interactive
+        // window for the largest lower editable composer, then tap its lower-right
+        // action area. This is still a site UI gesture, never an Enter key.
+        android.graphics.Rect composer = new android.graphics.Rect();
+        try {
+            if (active != null && !ownPackage.equals(active.getPackageName())) findComposerBounds(active, composer);
+            if (composer.width() <= 40) {
+                for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+                    if (w == null) continue;
+                    android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
+                    if (root == null || ownPackage.equals(root.getPackageName())) continue;
+                    android.graphics.Rect r = new android.graphics.Rect();
+                    findComposerBounds(root, r);
+                    if (r.width() > composer.width() && r.centerY() > composer.centerY()) composer.set(r);
+                }
+            }
+        } catch (Exception ignored) {}
+        if (active != null) { try { active.recycle(); } catch (Exception ignored) {} }
+        if (composer.width() <= 40 || composer.height() <= 20) return false;
+        return tapComposerSendFallback(null, composer);
     }
 
-    private boolean tapComposerSendFallback(android.view.accessibility.AccessibilityNodeInfo active) {
-        if (Build.VERSION.SDK_INT < 24 || active == null) return false;
-        final android.graphics.Rect composer = new android.graphics.Rect();
-        if (!findComposerBounds(active, composer)) return false;
-        if (composer.width() <= 40 || composer.height() <= 20) return false;
-
-        // Prefer an unlabeled clickable control close to the composer's lower-right corner.
-        android.view.accessibility.AccessibilityNodeInfo candidate =
-                findRightBottomClickable(active, composer);
-        float x;
-        float y;
-        if (candidate != null) {
-            android.graphics.Rect r = new android.graphics.Rect();
-            candidate.getBoundsInScreen(r);
-            x = r.centerX();
-            y = r.centerY();
-            try { candidate.recycle(); } catch (Exception ignored) {}
-        } else {
-            // Last-resort geometry used only when the WebView exposes no button node.
-            x = composer.right - Math.max(24, Math.min(42, composer.height() / 2));
-            y = composer.centerY();
-        }
+    private boolean tapComposerSendFallback(android.view.accessibility.AccessibilityNodeInfo ignored, android.graphics.Rect composer) {
+        if (Build.VERSION.SDK_INT < 24) return false;
+        if (composer == null || composer.width() <= 40 || composer.height() <= 20) return false;
+        float x = composer.right - Math.max(28, Math.min(56, composer.height() * 0.55f));
+        float y = composer.bottom - Math.max(18, Math.min(44, composer.height() * 0.35f));
         return tapScreenPoint(x, y);
     }
 
@@ -1032,7 +1027,7 @@ public class MouseAccessibilityService extends AccessibilityService {
 
     public static void endDragFromKeyboard() {
         MouseAccessibilityService s=instance;
-        if(s!=null){s.dragMode=false;}
+        if(s!=null){s.dragMode=false; s.releaseSnap();}
     }
 
     public static void scrollFromKeyboard(int direction) {
@@ -1077,11 +1072,18 @@ public class MouseAccessibilityService extends AccessibilityService {
         lp.x = Math.round(x);
         lp.y = Math.round(y);
         wm.updateViewLayout(cursor, lp);
-        if (autoTargetMode) snapToNearbyClickable();
+        if (autoTargetMode && !dragMode) snapToNearbyClickable();
         if (magnifierEnabled) updateMagnifier();
         if(dragMode && Build.VERSION.SDK_INT>=24){
             dispatchSwipe(oldX+3f,oldY+3f,x+3f,y+3f,35);
         }
+    }
+
+    private void releaseSnap() {
+        if (snappedTarget != null) { try { snappedTarget.recycle(); } catch (Exception ignored) {} }
+        snappedTarget = null;
+        snappedTargetRect = null;
+        snapReleased = true;
     }
 
     private void resetCursor() {

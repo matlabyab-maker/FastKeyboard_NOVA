@@ -155,11 +155,13 @@ public class FastKeyboardService extends InputMethodService {
     private void installHighlight(Button b){b.setOnTouchListener((v,e)->{if(e.getAction()==MotionEvent.ACTION_DOWN){b.setBackground(makeBg(YELLOW));}else if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){v.postDelayed(()->{Object t=b.getTag();b.setBackground(makeBg(t instanceof Integer?(Integer)t:CREAM));},80);}return false;});}
     private void addBackspaceRepeat(Button b){final boolean[] repeating={false};final Runnable[] repeat={null};repeat[0]=()->{repeating[0]=true;playBackspaceSound();backspace();handler.postDelayed(repeat[0],90);};b.setOnTouchListener((v,e)->{if(e.getAction()==MotionEvent.ACTION_DOWN){b.setBackground(makeBg(YELLOW));repeating[0]=false;playBackspaceSound();backspace();handler.postDelayed(repeat[0],420);return true;}if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){handler.removeCallbacks(repeat[0]);b.setBackground(makeBg(PINK));return true;}return true;});}
     private void playBackspaceSound(){try{if(backspaceTone!=null)backspaceTone.startTone(ToneGenerator.TONE_PROP_BEEP,45);}catch(Exception ignored){}}
+    private void playKeySound(){try{if(backspaceTone!=null)backspaceTone.startTone(ToneGenerator.TONE_PROP_BEEP,28);}catch(Exception ignored){}}
     private void addArrowRepeat(Button b,int keyCode){final boolean[] repeating={false};final Runnable[] repeat={null};repeat[0]=()->{repeating[0]=true;sendKey(keyCode);handler.postDelayed(repeat[0],90);};b.setOnTouchListener((v,e)->{if(e.getAction()==MotionEvent.ACTION_DOWN){b.setBackground(makeBg(YELLOW));repeating[0]=false;sendKey(keyCode);handler.postDelayed(repeat[0],380);return true;}if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){handler.removeCallbacks(repeat[0]);b.setBackground(makeBg(CREAM));return true;}return true;});}
     private void addDualKeyBehavior(Button b,String main,String mark){
         final boolean[] repeating={false}; final Runnable[] repeat={null};
         repeat[0]=()->{
             repeating[0]=true;
+            playKeySound();
             commit(TextUtils.isEmpty(mark) ? main : mark);
             handler.postDelayed(repeat[0],110);
         };
@@ -167,6 +169,7 @@ public class FastKeyboardService extends InputMethodService {
             if(e.getAction()==MotionEvent.ACTION_DOWN){
                 b.setBackground(makeBg(YELLOW));
                 repeating[0]=false;
+                playKeySound();
                 handler.postDelayed(repeat[0],350);
                 return true;
             }
