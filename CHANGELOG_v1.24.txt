@@ -1,0 +1,6 @@
+Fast Keyboard NOVA v1.24
+
+رفع خطای کامپایل آخرین نسخه:
+- افزودن import صحیح برای AccessibilityNodeInfo در MouseAccessibilityService.java.
+- افزایش versionCode از 13 به 14 و versionName از 1.22 به 1.24.
+- سایر قابلیت‌ها و چیدمان نسخه قبلی بدون تغییر نگه داشته شد.
