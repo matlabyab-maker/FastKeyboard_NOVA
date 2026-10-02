@@ -47,6 +47,8 @@ public class MouseAccessibilityService extends AccessibilityService {
     private boolean selectMode=false;
     private int cursorSizeStep=1;
     private final int[] cursorSizeDp={30,42,58,76};
+    private final java.util.ArrayList<Button> mouseButtons=new java.util.ArrayList<>();
+    private static final int LIGHT_BLUE=0xFF8FD3FF, LIGHT_CREAM=0xFFFFF0B3, LIGHT_GREEN=0xFFBFE8BF, LIGHT_YELLOW=0xFFFFE48A, LIGHT_ORANGE=0xFFFFB18A;
     private final Runnable autoTargetRunnable = new Runnable() {
         @Override public void run() {
             // Snap is checked directly after pointer movement; no periodic tree scan.
@@ -128,8 +130,10 @@ public class MouseAccessibilityService extends AccessibilityService {
         closeButton.setAllCaps(false);
         closeButton.setGravity(Gravity.CENTER);
         header.addView(closeButton, new LinearLayout.LayoutParams(dp(72), dp(58)));
+        dragHandle.setBackgroundColor(LIGHT_CREAM);
+        closeButton.setBackgroundColor(LIGHT_ORANGE);
         root.addView(header, new LinearLayout.LayoutParams(-1, dp(62)));
-        closeButton.setOnClickListener(v -> hideMouseOverlay());
+        closeButton.setOnClickListener(v -> { flashAllMouseButtons(LIGHT_ORANGE); hideMouseOverlay(); });
 
         final float[] panelLast = {0f,0f};
         final boolean[] panelMoving = {false};
@@ -137,6 +141,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         dragHandle.setOnTouchListener((v,e)->{
             if (mousePanelLp == null || wm == null) return true;
             if (e.getAction()==MotionEvent.ACTION_DOWN) {
+                flashAllMouseButtons(LIGHT_CREAM);
                 panelLast[0]=e.getRawX();
                 panelLast[1]=e.getRawY();
                 panelMoving[0]=true;
@@ -206,6 +211,15 @@ public class MouseAccessibilityService extends AccessibilityService {
         Button magnify = new Button(this); magnify.setText("↕"); magnify.setTextSize(25);
         Button right = new Button(this); right.setText("کلیک راست"); right.setTextSize(15);
         Button select = new Button(this); select.setText("Select"); select.setTextSize(14); select.setAllCaps(false);
+        mouseButtons.clear();
+        mouseButtons.add(dragHandle); mouseButtons.add(closeButton);
+        mouseButtons.add(left); mouseButtons.add(pointerSize); mouseButtons.add(auto); mouseButtons.add(magnify); mouseButtons.add(right); mouseButtons.add(select);
+        left.setBackgroundColor(LIGHT_BLUE);
+        pointerSize.setBackgroundColor(LIGHT_CREAM);
+        auto.setBackgroundColor(LIGHT_GREEN);
+        magnify.setBackgroundColor(LIGHT_CREAM);
+        right.setBackgroundColor(LIGHT_BLUE);
+        select.setBackgroundColor(LIGHT_YELLOW);
         row.addView(left,new LinearLayout.LayoutParams(0,58,2.1f));
         row.addView(pointerSize,new LinearLayout.LayoutParams(0,58,.58f));
         row.addView(auto,new LinearLayout.LayoutParams(0,58,1.0f));
@@ -214,10 +228,11 @@ public class MouseAccessibilityService extends AccessibilityService {
         row.addView(select,new LinearLayout.LayoutParams(0,58,1.25f));
         root.addView(row);
 
-        pointerSize.setOnClickListener(v -> cycleCursorSize());
-        magnify.setOnClickListener(v -> toggleMagnifier());
-        auto.setOnClickListener(v -> toggleAutoTargetMode());
+        pointerSize.setOnClickListener(v -> { flashAllMouseButtons(LIGHT_CREAM); cycleCursorSize(); });
+        magnify.setOnClickListener(v -> { flashAllMouseButtons(LIGHT_CREAM); toggleMagnifier(); });
+        auto.setOnClickListener(v -> { flashAllMouseButtons(LIGHT_GREEN); toggleAutoTargetMode(); });
         select.setOnClickListener(v -> {
+            flashAllMouseButtons(LIGHT_YELLOW);
             selectMode=!selectMode;
             select.setText(selectMode ? "Select ✓" : "Select");
             if (!selectMode) dragMode=false;
@@ -226,6 +241,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         // Hold left while moving the touch field to perform drag/select.
         left.setOnTouchListener((v,e)->{
             if (e.getAction()==MotionEvent.ACTION_DOWN) {
+                flashAllMouseButtons(LIGHT_BLUE);
                 beginDragFromKeyboard();
                 return true;
             }
@@ -236,7 +252,7 @@ public class MouseAccessibilityService extends AccessibilityService {
             }
             return true;
         });
-        right.setOnClickListener(v->click(true));
+        right.setOnClickListener(v->{ flashAllMouseButtons(LIGHT_BLUE); click(true); });
 
         LinearLayout transparencyRow = new LinearLayout(this);
         transparencyRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -296,6 +312,15 @@ public class MouseAccessibilityService extends AccessibilityService {
         panel.setElevation(30f);
         wm.addView(panel, mousePanelLp);
     }
+
+    private void flashAllMouseButtons(int color){
+        android.graphics.drawable.ColorDrawable glow=new android.graphics.drawable.ColorDrawable(color);
+        glow.setAlpha(95);
+        for(Button b:mouseButtons){ if(b!=null) b.setForeground(glow.getConstantState()!=null ? glow.getConstantState().newDrawable() : new android.graphics.drawable.ColorDrawable(color)); }
+        handler.removeCallbacks(clearMouseButtonLights);
+        handler.postDelayed(clearMouseButtonLights,180);
+    }
+    private final Runnable clearMouseButtonLights=()->{ for(Button b:mouseButtons){ if(b!=null) b.setForeground(null); } };
 
     private void cycleCursorSize() {
         cursorSizeStep=(cursorSizeStep+1)%cursorSizeDp.length;

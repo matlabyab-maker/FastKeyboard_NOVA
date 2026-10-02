@@ -1,0 +1,339 @@
+از
+که
+تا
+و
+به
+چه
+چرا
+در
+با
+برای
+این
+آن
+یک
+هم
+اگر
+اما
+یا
+نه
+را
+من
+تو
+او
+ما
+شما
+آنها
+اینها
+است
+هست
+بود
+شد
+می
+می‌شود
+میشود
+خواهد
+باید
+دارد
+دارند
+کرد
+کردن
+کن
+کند
+کنید
+کنیم
+گفت
+گفتن
+می‌خواهم
+میخواهم
+چگونه
+چطور
+کجا
+کی
+آیا
+مگر
+چون
+پس
+بنابراین
+همین
+همان
+همه
+هر
+هیچ
+خیلی
+بیشتر
+کمتر
+خوب
+بد
+بله
+باشه
+حتما
+لطفا
+لطفاً
+ممنون
+سلام
+خداحافظ
+نام
+اسم
+عدد
+رنگ
+کلمه
+حرف
+کاراکتر
+نماد
+علامت
+کلید
+دکمه
+پوشه
+فایل
+پروژه
+نسخه
+خطا
+اصلاح
+ویرایش
+ساخت
+بیلد
+دانلود
+آپلود
+باز
+بسته
+بستن
+بازکردن
+ذخیره
+حذف
+اضافه
+تغییر
+انتخاب
+پیشنهاد
+تاریخچه
+تنظیمات
+شفافیت
+نشانگر
+موس
+حرکت
+کلیک
+چپ
+راست
+ذره‌بین
+بزرگنمایی
+کشویی
+زیرگونه
+نگه‌داشتن
+لمس
+میدان
+قرمز
+نارنجی
+زرد
+سبز
+آبی
+بنفش
+صورتی
+قهوه‌ای
+مشکی
+سفید
+خاکستری
+فیروزه‌ای
+سرمه‌ای
+Clone
+Pull
+Status
+Stage
+Commit
+Push
+Repository
+Branch
+Branches
+master
+main
+origin
+GitHub
+GitHub Actions
+Run workflow
+Rename branch
+View all branches
+Create new branch
+Branch Name
+CANCEL
+CREATE
+Token name
+Name
+Expiration
+Repository access
+Only select repositories
+Repository permissions
+Contents
+Read and write
+Generate token
+Needs Authentication
+Username
+Password
+Save username and password
+DONE
+command
+config
+docs
+repository
+mgit.go
+README.md
+Code
+Issues
+Pull requests
+Actions
+Projects
+Wiki
+Security
+Insights
+Settings
+About
+Activity
+Releases
+Packages
+Contributors
+Stars
+Watching
+Forks
+Tags
+Commits
+Files
+Add file
+Upload files
+New file
+Clone repository
+Fork
+Star
+Watch
+letter
+character
+symbol
+mark
+sign
+digit
+number
+space
+backspace
+enter
+shift
+caps lock
+emoji
+key
+button
+arrow
+cursor
+mouse
+click
+left
+right
+long press
+drawer
+dropdown
+variant
+suggestion
+edit
+delete
+copy
+paste
+cut
+undo
+redo
+history
+settings
+transparency
+magnifier
+select
+move
+resize
+snap
+red
+orange
+yellow
+green
+blue
+purple
+pink
+brown
+black
+white
+gray
+turquoise
+navy
+All
+Fetch
+Merge
+Rebase
+Reset
+Checkout
+Remote
+Remotes
+Log
+Diff
+Stash
+Apply
+Discard
+Refresh
+Save
+Open
+Close
+Back
+Next
+Previous
+OK
+Cancel
+Commit message
+Author
+Date
+Time
+SHA
+Hash
+HEAD
+Tag
+Compare
+Pull request
+Review
+Merge pull request
+Create pull request
+Approve
+Request changes
+Comment
+Conversation
+Checks
+Build
+Artifacts
+Workflow runs
+Jobs
+Logs
+Rerun jobs
+Re-run failed jobs
+Download artifact
+Upload artifact
+پروژه اش را بده.
+بله و پروژه اش را بده.
+خوب بسازش.
+معلوم باشد.
+خطاها را بررسی کن و پروژه اصللاح شده اش را بده.
+ببین خطا دارد یا نه.
+باشه.
+باشد.
+اقدام کن.
+باز هم نشد.
+بله منظورم همین است.
+منظورم همین است.
+چرا؟
+درسترش چیست؟
+درسترش
+معلوم شد
+معلوم است
+نصف
+نیمه
+دوبرابرش کن
+محاسبه کن
+اصلاحش کن.
+همین را ادامه بده.
+همین کار را بکن.
+لفتش نده.
+همین هست.
+همین درست هست.
+همینجوری
+بیشترش
+میانگین
+میانبر
+این خطاهای آخرین ورژن است، اصلاحش کن و پروژه اصلاح شده اش را بده.
+پروژه اشرا اصلاح کن و تحویلم بده.

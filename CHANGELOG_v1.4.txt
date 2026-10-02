@@ -1,0 +1,6 @@
+FastKeyboard_NOVA v1.4
+
+- Mouse panel buttons use distinct colors based on the reference image.
+- Pressing any mouse-panel button briefly lights all mouse-panel buttons with the pressed button color.
+- Expanded Persian/English suggestion dictionaries with MGit/GitHub terms, keyboard/character terminology, 12 colors, and common Persian function words.
+- Preserved existing keyboard and mouse capabilities.

@@ -37,9 +37,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.concurrent.Executors;
 
 public class FastKeyboardService extends InputMethodService {
     private static final int NAVY = Color.rgb(23,61,112);
@@ -83,6 +83,8 @@ public class FastKeyboardService extends InputMethodService {
     private static final String[] EN_MARKS_R3={"<",">","{","}","[","]","\\","|","?","/"};
 
     private static final String[] ALIF_VARIANTS={"ا","آ","أ","إ","ٱ","ؤ","ئ"};
+    private static final String[] YEH_VARIANTS={"ی","ي","ى","ئ","ې","ے"};
+    private static final String[] VAV_VARIANTS={"و","ؤ","ۆ","ۇ","ۈ","ۋ"};
     // Long-press variants for the ± key. Exact requested symbols are included,
     // together with closely related typographic forms where useful.
     private static final String[] PM_VARIANTS={"«","»","_","-","!",":","+",";","\"","=","×","[","]","؛","≤","≥","~"};
@@ -92,10 +94,25 @@ public class FastKeyboardService extends InputMethodService {
     private static final String[] FLAGS={"🇮🇷","🇺🇸","🇬🇧","🇨🇦","🇦🇺","🇩🇪","🇫🇷","🇮🇹","🇪🇸","🇵🇹","🇹🇷","🇷🇺","🇺🇦","🇨🇳","🇯🇵","🇰🇷","🇮🇳","🇵🇰","🇦🇫","🇮🇶","🇸🇦","🇦🇪","🇶🇦","🇰🇼","🇧🇭","🇴🇲","🇪🇬","🇯🇴","🇱🇧","🇸🇾","🇵🇸","🇬🇷","🇳🇱","🇧🇪","🇨🇭","🇦🇹","🇸🇪","🇳🇴","🇩🇰","🇫🇮","🇵🇱","🇨🇿","🇭🇺","🇷🇴","🇧🇬","🇷🇸","🇭🇷","🇦🇱","🇧🇦","🇬🇪","🇦🇲","🇦🇿","🇰🇿","🇺🇿","🇹🇯","🇹🇲","🇰🇬","🇳🇿","🇿🇦","🇳🇬","🇰🇪","🇲🇦","🇩🇿","🇹🇳","🇧🇷","🇦🇷","🇨🇱","🇨🇴","🇲🇽","🇺🇾","🇻🇪","🇵🇪","🇨🇺","🇯🇲","🇸🇬","🇲🇾","🇮🇩","🇹🇭","🇻🇳","🇵🇭"};
     private static final String[] SYMBOLS={"!","@","#","$","%","^","&","*","(",")","-","_","+","=","[","]","{","}","\\","|",";",":","'","\"",",",".","<",">","/","?","~","`","§","¶","©","®","™","€","£","¥","₽","₹","₺","₩","₴","₦","₱","₲","₵","₡","₫","฿","∞","≈","≠","≤","≥","±","×","÷","√","∑","∏","∆","∇","∂","∫","∮","π","µ","Ω","α","β","γ","δ","θ","λ","σ","φ","ψ","ω","←","↑","→","↓","↔","↕","↖","↗","↘","↙","⇐","⇑","⇒","⇓","↻","↺","✓","✔","✕","✖","✗","✘","★","☆","●","○","■","□","◆","◇","▲","△","▼","▽","♥","♡","♦","♢","♣","♤","♧","☀","☁","☂","☃","☄","☎","☑","☒","☐","⚠","⚡","⚙","⚓","⚽","♠","♣","♥","♦","♪","♫","†","‡","‰","′","″","↪","↩","⌂","⌘","⌫","⏎","␣","◀","▶","⏪","⏩","⏮","⏭","⏸","⏹","⏺","🔒","🔓","🔑","🔔","🔕","🔗","🗝️"};
 
-    @Override public void onCreate(){super.onCreate();prefs=getSharedPreferences("fkp2",Context.MODE_PRIVATE);loadHistory();loadClipboardHistory();clipboardManager=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);clipboardListener=()->capturePrimaryClip();if(clipboardManager!=null){clipboardManager.addPrimaryClipChangedListener(clipboardListener);capturePrimaryClip();}keyboardColor=prefs.getInt("keyboardColor",CREAM); if(!prefs.getBoolean("suggestions_cleared_v19",false)){prefs.edit().remove("predictor").remove("suggestions_seed").putBoolean("suggestions_cleared_v19",true).apply();} predictor.load(prefs);}
+    @Override public void onCreate(){super.onCreate();prefs=getSharedPreferences("fkp2",Context.MODE_PRIVATE);loadHistory();loadClipboardHistory();clipboardManager=(ClipboardManager)getSystemService(CLIPBOARD_SERVICE);clipboardListener=()->capturePrimaryClip();if(clipboardManager!=null){clipboardManager.addPrimaryClipChangedListener(clipboardListener);capturePrimaryClip();}keyboardColor=prefs.getInt("keyboardColor",CREAM); if(!prefs.getBoolean("suggestions_cleared_v19",false)){prefs.edit().remove("predictor").remove("suggestions_seed").putBoolean("suggestions_cleared_v19",true).apply();} predictor.load(prefs); loadSuggestionAssets();}
     @Override public View onCreateInputView(){return buildKeyboard();}
     @Override public void onStartInputView(EditorInfo info,boolean restarting){super.onStartInputView(info,restarting);if(restarting)rebuild(); scheduleSuggestions();}
     @Override public void onFinishInputView(boolean finishingInput){super.onFinishInputView(finishingInput);MouseAccessibilityService.hideCursorFromKeyboard();}
+
+    private void loadSuggestionAssets(){
+        loadSuggestionAsset("suggestions_fa.txt");
+        loadSuggestionAsset("suggestions_en.txt");
+    }
+    private void loadSuggestionAsset(String name){
+        try(BufferedReader br=new BufferedReader(new InputStreamReader(getAssets().open(name),"UTF-8"))){
+            String line;
+            while((line=br.readLine())!=null){
+                String w=line.trim();
+                if(!w.isEmpty() && !w.startsWith("#")) predictor.seedCommon(w,3);
+            }
+        }catch(Exception ignored){}
+    }
+
     @Override public void onDestroy(){handler.removeCallbacksAndMessages(null);suggestionExecutor.shutdownNow();if(clipboardManager!=null&&clipboardListener!=null){try{clipboardManager.removePrimaryClipChangedListener(clipboardListener);}catch(Exception ignored){}}MouseAccessibilityService.hideCursorFromKeyboard();super.onDestroy();}
     @Override public void onUpdateSelection(int oldSelStart,int oldSelEnd,int newSelStart,int newSelEnd,int candidatesStart,int candidatesEnd){super.onUpdateSelection(oldSelStart,oldSelEnd,newSelStart,newSelEnd,candidatesStart,candidatesEnd);scheduleSuggestions();}
 
@@ -117,7 +134,7 @@ public class FastKeyboardService extends InputMethodService {
         LinearLayout bottom=row(1.08f);Button emoji=keyWithIcon("اموجی","☺",14,NAVY,CREAM);Button sym=keyWithIcon("123\n!@...","⌘",13,NAVY,symbols?YELLOW:CREAM);Button globe=key(english?"🌐 EN":"🌐 FA",18,BLUE,CREAM);Button space=key("Space",19,NAVY,CREAM);Button comma=key(english?",":"،",23,RED,CREAM);Button question=key(".",23,RED,CREAM);Button pm=key("◆",18,RED,CREAM);Button left=key("←",23,BLUE,CREAM);Button right=key("→",23,BLUE,CREAM);Button up=key("↑",23,BLUE,CREAM);Button down=key("↓",23,BLUE,CREAM);bottom.addView(emoji,weight(.82f));bottom.addView(sym,weight(1.15f));bottom.addView(globe,weight(.9f));bottom.addView(space,weight(2.35f));bottom.addView(comma,weight(.72f));bottom.addView(question,weight(.72f));bottom.addView(pm,weight(.72f));bottom.addView(left,weight(.95f));bottom.addView(right,weight(.95f));bottom.addView(up,weight(.82f));bottom.addView(down,weight(.82f));emoji.setOnClickListener(v->showEmoji(v));sym.setOnClickListener(v->showSymbols(v));globe.setOnClickListener(v->{english=!english;symbols=false;rebuild();});space.setOnClickListener(v->commitSpaceAndLearn());comma.setOnClickListener(v->commit(((Button)v).getText().toString()));question.setOnClickListener(v->commit("."));pm.setOnClickListener(v->commit("◆"));addSymbolVariantsLongPress(pm,PM_VARIANTS);addArrowRepeat(left,KeyEvent.KEYCODE_DPAD_LEFT);addArrowRepeat(right,KeyEvent.KEYCODE_DPAD_RIGHT);addArrowRepeat(up,KeyEvent.KEYCODE_DPAD_UP);addArrowRepeat(down,KeyEvent.KEYCODE_DPAD_DOWN);root.addView(bottom);return root;
     }
 
-    private void addLetterRow(LinearLayout parent,String[] letters,String[] marks){LinearLayout r=row(1f);for(int i=0;i<letters.length;i++){String s=caps?letters[i].toUpperCase():letters[i];Button b=key(s,22,NAVY,CREAM);r.addView(b,weight(1));final String out=s;b.setOnClickListener(v->{commit(out);if(!capsLocked&&caps){caps=false;rebuild();}});if(!english&&s.equals("ا")){addAlifLongPress(b);}else{}}parent.addView(r);}
+    private void addLetterRow(LinearLayout parent,String[] letters,String[] marks){LinearLayout r=row(1f);for(int i=0;i<letters.length;i++){String s=caps?letters[i].toUpperCase():letters[i];Button b=key(s,22,NAVY,CREAM);r.addView(b,weight(1));final String out=s;b.setOnClickListener(v->{commit(out);if(!capsLocked&&caps){caps=false;rebuild();}});if(!english&&s.equals("ا")){addAlifLongPress(b);}else if(!english&&s.equals("ی")){addSymbolVariantsLongPress(b,YEH_VARIANTS);}else if(!english&&s.equals("و")){addSymbolVariantsLongPress(b,VAV_VARIANTS);}}parent.addView(r);}
     private Button dualKey(String main,String mark,float size,int fg,int markColor,int bg){DualButton b=new DualButton(this);b.setMainMark(main,mark,size,fg,markColor);b.setAllCaps(false);b.setTypeface(Typeface.create("sans",Typeface.NORMAL));b.setPadding(0,0,0,0);b.setMinHeight(0);b.setMinWidth(0);b.setTag(main);b.setBackground(makeBg(bg));installHighlight(b);return b;}
     private static class DualButton extends Button {
         private String main="", mark=""; private float mainSize=20; private int mainColor=Color.BLACK, markColor=Color.RED;
@@ -452,6 +469,7 @@ public class FastKeyboardService extends InputMethodService {
         Predictor(){
         }
         void seed(String a,String b,int n){next.computeIfAbsent(a,k->new HashMap<>()).put(b,n);}
+        synchronized void seedCommon(String w,int n){if(w==null)return;w=w.trim();if(w.isEmpty())return;common.put(w,Math.max(n,common.getOrDefault(w,0)));commonSorted=Collections.emptyList();lastSuggestionKey="";}
         synchronized void observeWord(String w){ common.put(w,common.getOrDefault(w,0)+1); commonSorted=Collections.emptyList(); lastSuggestionKey=""; }
         void observePunctuation(String p){}
         void learnFromContext(String text){
