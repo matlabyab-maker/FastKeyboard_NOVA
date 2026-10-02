@@ -1,0 +1,10 @@
+FastKeyboard_NOVA v1.20
+
+Fix: the green/blue suggestion-bar Send button now has a stronger fallback for browser/WebView UIs that expose the site's blue Send icon without an accessible text label.
+
+Send behavior:
+1. Try the real accessible Send/ارسال control.
+2. Recognize additional send/submit resource-id and label hints.
+3. If the WebView exposes no usable Send node, locate the editable message composer and use an Android Accessibility gesture on its lower-right action area.
+
+The keyboard Enter key remains separate and still inserts a newline where appropriate. Mouse reference/design is unchanged.

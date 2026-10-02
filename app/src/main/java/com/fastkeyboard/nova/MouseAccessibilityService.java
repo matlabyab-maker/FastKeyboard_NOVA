@@ -775,26 +775,125 @@ public class MouseAccessibilityService extends AccessibilityService {
         for (android.view.accessibility.AccessibilityNodeInfo n : candidates) {
             if (n != best) { try { n.recycle(); } catch (Exception ignored) {} }
         }
-        if (best == null) return false;
 
+        // First try the real accessible Send control.
         boolean ok = false;
-        try {
-            if (best.isEnabled()) {
-                ok = best.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
-                if (!ok && Build.VERSION.SDK_INT >= 21) {
-                    // Some WebView/browser nodes expose ACTION_CLICK in the action list
-                    // but don't report themselves as clickable.
-                    for (android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction a : best.getActionList()) {
-                        if (a.getId() == android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) {
-                            ok = best.performAction(a.getId());
-                            break;
+        if (best != null) {
+            try {
+                if (best.isEnabled()) {
+                    ok = best.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
+                    if (!ok && Build.VERSION.SDK_INT >= 21) {
+                        for (android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction a : best.getActionList()) {
+                            if (a.getId() == android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) {
+                                ok = best.performAction(a.getId());
+                                break;
+                            }
                         }
                     }
                 }
+            } catch (Exception ignored) {}
+            try { best.recycle(); } catch (Exception ignored) {}
+            if (ok) return true;
+        }
+
+        // Some browser/WebView versions expose ChatGPT's blue Send icon without
+        // any text or content-description. In that case locate the message
+        // composer and tap its lower-right action area with an accessibility gesture.
+        return tapComposerSendFallback(active);
+    }
+
+    private boolean tapComposerSendFallback(android.view.accessibility.AccessibilityNodeInfo active) {
+        if (Build.VERSION.SDK_INT < 24 || active == null) return false;
+        final android.graphics.Rect composer = new android.graphics.Rect();
+        if (!findComposerBounds(active, composer)) return false;
+        if (composer.width() <= 40 || composer.height() <= 20) return false;
+
+        // Prefer an unlabeled clickable control close to the composer's lower-right corner.
+        android.view.accessibility.AccessibilityNodeInfo candidate =
+                findRightBottomClickable(active, composer);
+        float x;
+        float y;
+        if (candidate != null) {
+            android.graphics.Rect r = new android.graphics.Rect();
+            candidate.getBoundsInScreen(r);
+            x = r.centerX();
+            y = r.centerY();
+            try { candidate.recycle(); } catch (Exception ignored) {}
+        } else {
+            // Last-resort geometry used only when the WebView exposes no button node.
+            x = composer.right - Math.max(24, Math.min(42, composer.height() / 2));
+            y = composer.centerY();
+        }
+        return tapScreenPoint(x, y);
+    }
+
+    private boolean findComposerBounds(android.view.accessibility.AccessibilityNodeInfo node,
+                                       android.graphics.Rect out) {
+        if (node == null) return false;
+        try {
+            CharSequence cls = node.getClassName();
+            String c = cls == null ? "" : cls.toString().toLowerCase(java.util.Locale.ROOT);
+            boolean editable = node.isEditable() || c.contains("edittext") ||
+                    c.contains("editable") || c.contains("textinput");
+            if (editable && node.isVisibleToUser()) {
+                android.graphics.Rect r = new android.graphics.Rect();
+                node.getBoundsInScreen(r);
+                if (r.width() > out.width() && r.height() > out.height()) out.set(r);
             }
-        } catch (Exception ignored) {}
-        try { best.recycle(); } catch (Exception ignored) {}
-        return ok;
+            for (int i=0;i<node.getChildCount();i++) {
+                android.view.accessibility.AccessibilityNodeInfo ch=node.getChild(i);
+                if(ch!=null){ findComposerBounds(ch,out); try{ch.recycle();}catch(Exception ignored){} }
+            }
+        } catch(Exception ignored){}
+        return out.width()>40 && out.height()>20;
+    }
+
+    private android.view.accessibility.AccessibilityNodeInfo findRightBottomClickable(
+            android.view.accessibility.AccessibilityNodeInfo node, android.graphics.Rect composer) {
+        if (node == null) return null;
+        android.view.accessibility.AccessibilityNodeInfo best=null;
+        int bestScore=Integer.MIN_VALUE;
+        try {
+            if (node.isVisibleToUser() && node.isEnabled() && node.isClickable()) {
+                android.graphics.Rect r=new android.graphics.Rect(); node.getBoundsInScreen(r);
+                int score=-10000;
+                if(r.width()>0 && r.height()>0 && r.centerX()>=composer.left && r.centerX()<=composer.right+30 &&
+                        r.centerY()>=composer.top && r.centerY()<=composer.bottom+30){
+                    score=100;
+                    int dx=Math.abs(composer.right-r.right);
+                    int dy=Math.abs(composer.bottom-r.bottom);
+                    score-=Math.min(80,dx*2+dy*2);
+                    String d=(String.valueOf(node.getContentDescription())+" "+String.valueOf(node.getViewIdResourceName())).toLowerCase(java.util.Locale.ROOT);
+                    if(d.contains("send")||d.contains("submit")||d.contains("ارسال")) score+=200;
+                }
+                if(score>bestScore){bestScore=score;best=android.view.accessibility.AccessibilityNodeInfo.obtain(node);}
+            }
+            for(int i=0;i<node.getChildCount();i++){
+                android.view.accessibility.AccessibilityNodeInfo ch=node.getChild(i);
+                if(ch!=null){
+                    android.view.accessibility.AccessibilityNodeInfo got=findRightBottomClickable(ch,composer);
+                    if(got!=null){
+                        android.graphics.Rect rr=new android.graphics.Rect();got.getBoundsInScreen(rr);
+                        int dx=Math.abs(composer.right-rr.right), dy=Math.abs(composer.bottom-rr.bottom);
+                        int sc=100-Math.min(80,dx*2+dy*2);
+                        String d=(String.valueOf(got.getContentDescription())+" "+String.valueOf(got.getViewIdResourceName())).toLowerCase(java.util.Locale.ROOT);
+                        if(d.contains("send")||d.contains("submit")||d.contains("ارسال")) sc+=200;
+                        if(sc>bestScore){if(best!=null)try{best.recycle();}catch(Exception ignored){} best=got;bestScore=sc;}else try{got.recycle();}catch(Exception ignored){}
+                    }
+                    try{ch.recycle();}catch(Exception ignored){}
+                }
+            }
+        } catch(Exception ignored){}
+        return bestScore>-9000?best:null;
+    }
+
+    private boolean tapScreenPoint(float x,float y){
+        if(Build.VERSION.SDK_INT<24)return false;
+        try{
+            android.graphics.Path p=new android.graphics.Path();p.moveTo(x,y);
+            GestureDescription.StrokeDescription stroke=new GestureDescription.StrokeDescription(p,0,80);
+            return dispatchGesture(new GestureDescription.Builder().addStroke(stroke).build(),null,null);
+        }catch(Exception e){return false;}
     }
 
     private void collectSendCandidates(android.view.accessibility.AccessibilityNodeInfo node,
@@ -824,7 +923,9 @@ public class MouseAccessibilityService extends AccessibilityService {
         boolean label =
                 all.equals("send") || all.equals("ارسال") ||
                 all.contains("send message") || all.contains("send prompt") ||
-                all.contains("send message") || all.contains("ارسال پیام") ||
+                all.contains("send_button") || all.contains("send-button") ||
+                all.contains("sendbutton") || all.contains("submit") ||
+                all.contains("ارسال پیام") || all.contains("ارسال") ||
                 all.contains("ارسال پیام") || all.contains("submit message");
         if (!label) return false;
 

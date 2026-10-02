@@ -1,0 +1,9 @@
+FastKeyboard_NOVA v1.19
+
+Fix: File button
+- The green «فایل» button first tries to activate the active site's accessible attachment/file control.
+- If the AccessibilityService is unavailable, the button now reliably opens Android's normal document/file picker using ACTION_OPEN_DOCUMENT.
+- ACTION_GET_CONTENT is used as a secondary fallback if ACTION_OPEN_DOCUMENT cannot be launched.
+- Existing keyboard layout, suggestion-bar height, Send button, and mouse reference/design are unchanged.
+
+Note: Clicking the site's own attachment control requires Android Accessibility permission for Fast Keyboard Nova. Without it, the Android file picker opens directly instead.

@@ -3,6 +3,7 @@ package com.fastkeyboard.nova;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.ClipData;
+import android.content.Intent;
 import android.content.ClipboardManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -276,12 +277,31 @@ public class FastKeyboardService extends InputMethodService {
     }
 
     private void performFileAction(){
-        // This button is intentionally NOT a direct Android file-picker command.
-        // It activates the active site's visible attachment/file button first,
-        // so the site's own file chooser / device storage explorer opens.
+        // First try the active app/site attachment button through Accessibility.
+        // If the site does not expose that button (or Accessibility is not enabled),
+        // open Android's normal document picker as a reliable fallback.
         boolean handled = MouseAccessibilityService.clickFileButtonFromKeyboard();
         if(!handled){
-            android.widget.Toast.makeText(this, "دکمه «انتخاب فایل» سایت پیدا نشد؛ «موس سیستمی» را در تنظیمات Android فعال کنید.", android.widget.Toast.LENGTH_SHORT).show();
+            try {
+                Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                pick.addCategory(Intent.CATEGORY_OPENABLE);
+                pick.setType("*/*");
+                pick.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(pick);
+                handled = true;
+            } catch (Exception e) {
+                try {
+                    Intent pick = new Intent(Intent.ACTION_GET_CONTENT);
+                    pick.addCategory(Intent.CATEGORY_OPENABLE);
+                    pick.setType("*/*");
+                    pick.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(pick);
+                    handled = true;
+                } catch (Exception ignored) {}
+            }
+        }
+        if(!handled){
+            android.widget.Toast.makeText(this, "باز کردن انتخاب فایل انجام نشد.", android.widget.Toast.LENGTH_SHORT).show();
         }
         scheduleSuggestions();
     }
