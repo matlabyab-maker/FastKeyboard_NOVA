@@ -113,7 +113,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         // Quick Settings uses the user's exact supplied mouse-window image as the
         // visual base. Interactive transparent hit areas are placed over the image,
         // so the appearance stays unchanged while every control remains functional.
-        final int imageW = 613;
+        final int imageW = 639;
         final int imageH = 287;
         final int panelW = Math.min(dp(imageW), Math.max(dp(200), screenW - dp(8)));
         final int panelH = Math.max(dp(132), Math.round(panelW * imageH / (float) imageW));
@@ -133,16 +133,18 @@ public class MouseAccessibilityService extends AccessibilityService {
         final float sy = 1f / imageH;
         final java.util.ArrayList<View> hitViews = new java.util.ArrayList<>();
 
-        // Coordinates are taken directly from the supplied 613x287 reference image.
+        // Coordinates are taken directly from the supplied 639x287 reference image.
+        // Exact controls from the new 639x287 reference image.
+        // Top-right: Close / Drag. Bottom: Left Click, Left, Right, Up, Down, Point Zoom.
         final View touchPad = transparentHit(panel, 0, 0, 563, 210, hitViews);
-        final View close = transparentHit(panel, 563, 0, 50, 105, hitViews);
-        final View drag = transparentHit(panel, 563, 105, 50, 105, hitViews);
-        final View left = transparentHit(panel, 0, 210, 169, 77, hitViews);
-        final View wheel1 = transparentHit(panel, 169, 210, 74, 77, hitViews);
-        final View auto = transparentHit(panel, 243, 210, 80, 77, hitViews);
-        final View wheel2 = transparentHit(panel, 323, 210, 75, 77, hitViews);
-        final View right = transparentHit(panel, 398, 210, 114, 77, hitViews);
-        final View select = transparentHit(panel, 512, 210, 101, 77, hitViews);
+        final View close = transparentHit(panel, 563, 0, 76, 105, hitViews);
+        final View drag = transparentHit(panel, 563, 105, 76, 105, hitViews);
+        final View leftClick = transparentHit(panel, 0, 210, 126, 77, hitViews);
+        final View moveLeft = transparentHit(panel, 126, 210, 89, 77, hitViews);
+        final View moveRight = transparentHit(panel, 215, 210, 87, 77, hitViews);
+        final View moveUp = transparentHit(panel, 302, 210, 92, 77, hitViews);
+        final View moveDown = transparentHit(panel, 394, 210, 87, 77, hitViews);
+        final View pointZoom = transparentHit(panel, 481, 210, 82, 77, hitViews);
         final View resize = transparentHit(panel, 0, 0, 70, 45, hitViews);
 
         // Reposition hit areas whenever the panel size changes, preserving the exact
@@ -150,14 +152,14 @@ public class MouseAccessibilityService extends AccessibilityService {
         panel.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{
             int w = r-l, h = b-t;
             setHit(panel, touchPad, 0,0,563,210,w,h);
-            setHit(panel, close, 563,0,50,105,w,h);
-            setHit(panel, drag, 563,105,50,105,w,h);
-            setHit(panel, left, 0,210,169,77,w,h);
-            setHit(panel, wheel1, 169,210,74,77,w,h);
-            setHit(panel, auto, 243,210,80,77,w,h);
-            setHit(panel, wheel2, 323,210,75,77,w,h);
-            setHit(panel, right, 398,210,114,77,w,h);
-            setHit(panel, select, 512,210,101,77,w,h);
+            setHit(panel, close, 563,0,76,105,w,h);
+            setHit(panel, drag, 563,105,76,105,w,h);
+            setHit(panel, leftClick, 0,210,126,77,w,h);
+            setHit(panel, moveLeft, 126,210,89,77,w,h);
+            setHit(panel, moveRight, 215,210,87,77,w,h);
+            setHit(panel, moveUp, 302,210,92,77,w,h);
+            setHit(panel, moveDown, 394,210,87,77,w,h);
+            setHit(panel, pointZoom, 481,210,82,77,w,h);
             setHit(panel, resize, 0,0,70,45,w,h);
         });
 
@@ -203,12 +205,17 @@ public class MouseAccessibilityService extends AccessibilityService {
             return true;
         });
 
-        left.setOnClickListener(v -> click(false));
-        right.setOnClickListener(v -> click(true));
-        wheel1.setOnClickListener(v -> scroll(-1));
-        wheel2.setOnClickListener(v -> scroll(1));
-        auto.setOnClickListener(v -> toggleAutoTargetMode());
-        select.setOnClickListener(v -> { selectMode = !selectMode; if (select instanceof Button) ((Button)select).setText(selectMode ? "Select ✓" : "Select"); });
+        leftClick.setOnClickListener(v -> click(false));
+
+        // The four arrow buttons perform direct cursor movement.
+        final float arrowStep = Math.max(dp(24), 48f * getResources().getDisplayMetrics().density);
+        moveLeft.setOnClickListener(v -> moveRelative(-arrowStep, 0));
+        moveRight.setOnClickListener(v -> moveRelative(arrowStep, 0));
+        moveUp.setOnClickListener(v -> moveRelative(0, -arrowStep));
+        moveDown.setOnClickListener(v -> moveRelative(0, arrowStep));
+
+        // "Point Zoom" magnifies only the screen area immediately under the mouse pointer.
+        pointZoom.setOnClickListener(v -> toggleMagnifier());
 
         // One functional resize grip at the same top-left location shown in the image.
         final float[] resizeLast = {0f,0f};
@@ -257,9 +264,9 @@ public class MouseAccessibilityService extends AccessibilityService {
 
     private void setHit(FrameLayout parent,View v,int x,int y,int w,int h,int pw,int ph){
         FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)v.getLayoutParams();
-        lp.leftMargin=Math.round(x*pw/613f);
+        lp.leftMargin=Math.round(x*pw/639f);
         lp.topMargin=Math.round(y*ph/287f);
-        lp.width=Math.max(1,Math.round(w*pw/613f));
+        lp.width=Math.max(1,Math.round(w*pw/639f));
         lp.height=Math.max(1,Math.round(h*ph/287f));
         v.setLayoutParams(lp);
     }
@@ -319,7 +326,7 @@ public class MouseAccessibilityService extends AccessibilityService {
                         if(hw!=null){source=hw.copy(Bitmap.Config.ARGB_8888,false);hw.recycle();}
                     }
                     if(source==null)return;
-                    int radius=Math.max(30,Math.round(cursorSize*1.2f));
+                    int radius=Math.max(28,Math.round(cursorSize*2.0f));
                     int cx=Math.max(0,Math.min(source.getWidth()-1,Math.round(x+cursorSize/2f)));
                     int cy=Math.max(0,Math.min(source.getHeight()-1,Math.round(y+cursorSize/2f)));
                     int left=Math.max(0,Math.min(source.getWidth()-1,cx-radius));
@@ -327,7 +334,7 @@ public class MouseAccessibilityService extends AccessibilityService {
                     int right=Math.min(source.getWidth(),left+radius*2);
                     int bottom=Math.min(source.getHeight(),top+radius*2);
                     Bitmap crop=Bitmap.createBitmap(source,left,top,Math.max(1,right-left),Math.max(1,bottom-top));
-                    Bitmap scaled=Bitmap.createScaledBitmap(crop,dp(180),dp(180),true);
+                    Bitmap scaled=Bitmap.createScaledBitmap(crop,dp(210),dp(210),true);
                     crop.recycle();
                     Bitmap finalBitmap=scaled;
                     handler.post(()->showMagnifierBitmap(finalBitmap));
@@ -349,15 +356,20 @@ public class MouseAccessibilityService extends AccessibilityService {
             bg.setColor(Color.WHITE); bg.setStroke(dp(2),Color.rgb(45,45,55)); bg.setCornerRadius(dp(8));
             iv.setBackground(bg); iv.setPadding(dp(2),dp(2),dp(2),dp(2));
             magnifierView=iv;
-            magnifierLp=new WindowManager.LayoutParams(dp(190),dp(190),WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            magnifierLp=new WindowManager.LayoutParams(dp(220),dp(220),WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE|WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT);
             magnifierLp.gravity=Gravity.TOP|Gravity.LEFT;
             try{wm.addView(magnifierView,magnifierLp);}catch(Exception ignored){magnifierView=null;return;}
         }
         ((ImageView)magnifierView).setImageBitmap(bitmap);
-        magnifierLp.x=Math.max(0,Math.min(screenW-magnifierLp.width,Math.round(x+cursorSize+dp(8))));
-        magnifierLp.y=Math.max(0,Math.min(screenH-magnifierLp.height,Math.round(y-dp(8)-magnifierLp.height)));
+        // Keep the zoom lens centered on the pointer position. The source crop is
+        // centered on the pointer, so this is a true point-zoom rather than a
+        // general page/screen zoom.
+        float cx = x + cursorSize / 2f;
+        float cy = y + cursorSize / 2f;
+        magnifierLp.x=Math.max(0,Math.min(screenW-magnifierLp.width,Math.round(cx-magnifierLp.width/2f)));
+        magnifierLp.y=Math.max(0,Math.min(screenH-magnifierLp.height,Math.round(cy-magnifierLp.height/2f)));
         try{wm.updateViewLayout(magnifierView,magnifierLp);}catch(Exception ignored){}
     }
 

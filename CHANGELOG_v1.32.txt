@@ -1,0 +1,9 @@
+FastKeyboard_NOVA v1.32
+
+- Replaced the mouse window image with the supplied 639x287 reference image.
+- Optimized the reference JPEG at high quality (95, 4:4:4, progressive) without changing dimensions.
+- Assigned controls exactly to the new image:
+  Close, Drag, Left Click, Left, Right, Up, Down, Point Zoom.
+- Arrow buttons move the system cursor.
+- Point Zoom toggles the existing screen magnifier.
+- Mouse panel layout and image proportions follow the supplied reference.
