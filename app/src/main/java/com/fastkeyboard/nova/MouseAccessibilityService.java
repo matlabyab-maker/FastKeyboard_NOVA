@@ -9,6 +9,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.ColorSpace;
 import android.hardware.HardwareBuffer;
 import android.view.Display;
+import android.util.DisplayMetrics;
 import android.widget.ImageView;
 import android.graphics.Path;
 import android.graphics.PixelFormat;
@@ -21,6 +22,8 @@ import android.view.WindowManager;
 import android.view.View;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.app.usage.UsageStats;
+import android.app.usage.UsageStatsManager;
 import android.widget.TextView;
 import android.widget.FrameLayout;
 import android.widget.Button;
@@ -70,6 +73,15 @@ public class MouseAccessibilityService extends AccessibilityService {
         android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
         screenW = dm.widthPixels;
         screenH = dm.heightPixels;
+        // Use the real physical display bounds so the cursor can travel through
+        // the Android status bar and navigation bar as well as the app area.
+        try {
+            android.view.Display display = wm.getDefaultDisplay();
+            android.util.DisplayMetrics real = new android.util.DisplayMetrics();
+            display.getRealMetrics(real);
+            screenW = real.widthPixels;
+            screenH = real.heightPixels;
+        } catch (Throwable ignored) {}
         cursorSize = Math.max(42, Math.round(42 * dm.density));
         AccessibilityServiceInfo info = getServiceInfo();
         if (info != null) {
@@ -196,7 +208,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         wheel1.setOnClickListener(v -> scroll(-1));
         wheel2.setOnClickListener(v -> scroll(1));
         auto.setOnClickListener(v -> toggleAutoTargetMode());
-        select.setOnClickListener(v -> selectMode = !selectMode);
+        select.setOnClickListener(v -> { selectMode = !selectMode; if (select instanceof Button) ((Button)select).setText(selectMode ? "Select ✓" : "Select"); });
 
         // One functional resize grip at the same top-left location shown in the image.
         final float[] resizeLast = {0f,0f};
@@ -557,8 +569,11 @@ public class MouseAccessibilityService extends AccessibilityService {
 
     private void moveCursorToScreenPoint(float tx, float ty) {
         if (cursor == null || wm == null) return;
-        float maxX = Math.max(0, screenW - cursorSize);
-        float maxY = Math.max(0, screenH - cursorSize);
+        // x/y are the cursor hotspot, so do not subtract cursorSize here.
+        // This permits the hotspot itself to reach the last pixel of the
+        // navigation bar instead of stopping one cursor-width above it.
+        float maxX = Math.max(0, screenW - 1f);
+        float maxY = Math.max(0, screenH - 1f);
         x = Math.max(0, Math.min(maxX, tx));
         y = Math.max(0, Math.min(maxY, ty));
         WindowManager.LayoutParams lp = (WindowManager.LayoutParams) cursor.getTag();
@@ -595,6 +610,7 @@ public class MouseAccessibilityService extends AccessibilityService {
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
             WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE |
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN |
             WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         );
@@ -647,27 +663,73 @@ public class MouseAccessibilityService extends AccessibilityService {
         return s != null && s.clickFileButton();
     }
 
+    private String getForegroundPackageFromUsage() {
+        try {
+            if (Build.VERSION.SDK_INT < 21) return "";
+            UsageStatsManager usm = (UsageStatsManager)getSystemService(USAGE_STATS_SERVICE);
+            if (usm == null) return "";
+            long end = System.currentTimeMillis();
+            java.util.List<UsageStats> stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, end - 30000L, end);
+            if (stats == null || stats.isEmpty()) return "";
+            String own = getPackageName(); UsageStats best = null;
+            for (UsageStats u : stats) {
+                if (u == null || u.getPackageName() == null || own.equals(u.getPackageName())) continue;
+                if (best == null || u.getLastTimeUsed() > best.getLastTimeUsed()) best = u;
+            }
+            return best == null ? "" : best.getPackageName();
+        } catch (Exception ignored) { return ""; }
+    }
+
+    private java.util.ArrayList<AccessibilityNodeInfo> targetRoots() {
+        java.util.ArrayList<AccessibilityNodeInfo> all = new java.util.ArrayList<>();
+        String own = getPackageName(); String fg = getForegroundPackageFromUsage();
+        try {
+            AccessibilityNodeInfo active = getRootInActiveWindow();
+            if (active != null && !own.equals(active.getPackageName())) all.add(active);
+        } catch (Exception ignored) {}
+        try {
+            for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+                if (w == null) continue; AccessibilityNodeInfo root = w.getRoot();
+                if (root == null || own.equals(root.getPackageName())) continue; all.add(root);
+            }
+        } catch (Exception ignored) {}
+        if (!fg.isEmpty()) {
+            java.util.ArrayList<AccessibilityNodeInfo> filtered = new java.util.ArrayList<>();
+            for (AccessibilityNodeInfo r : all) {
+                if (r != null && fg.equals(r.getPackageName())) filtered.add(r);
+                else try { if (r != null) r.recycle(); } catch (Exception ignored) {}
+            }
+            if (!filtered.isEmpty()) return filtered;
+        }
+        return all;
+    }
+
+    private boolean performNodeClick(AccessibilityNodeInfo n) {
+        if (n == null) return false;
+        try {
+            if (!n.isEnabled()) return false;
+            if (n.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true;
+            for (AccessibilityNodeInfo.AccessibilityAction a : n.getActionList())
+                if (a.getId() == AccessibilityNodeInfo.ACTION_CLICK && n.performAction(a.getId())) return true;
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    private void scheduleFileMenuClicks() {
+        handler.postDelayed(this::clickFileMenuItem, 250);
+        handler.postDelayed(this::clickFileMenuItem, 600);
+        handler.postDelayed(this::clickFileMenuItem, 1000);
+        handler.postDelayed(this::clickFileMenuItem, 1500);
+    }
+
     private boolean clickFileButton() {
         if (Build.VERSION.SDK_INT < 21) return false;
 
-        final String ownPackage = getPackageName();
         java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> candidates =
                 new java.util.ArrayList<>();
-
-        android.view.accessibility.AccessibilityNodeInfo active = getRootInActiveWindow();
-        if (active != null && !ownPackage.equals(active.getPackageName())) {
-            collectFileCandidates(active, candidates);
-        }
-        if (candidates.isEmpty()) {
-            try {
-                for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
-                    if (w == null) continue;
-                    android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
-                    if (root == null || ownPackage.equals(root.getPackageName())) continue;
-                    collectFileCandidates(root, candidates);
-                }
-            } catch (Exception ignored) {}
-        }
+        java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> roots = targetRoots();
+        for (android.view.accessibility.AccessibilityNodeInfo root : roots) collectFileCandidates(root, candidates);
+        for (android.view.accessibility.AccessibilityNodeInfo root : roots) try { root.recycle(); } catch (Exception ignored) {}
 
         android.view.accessibility.AccessibilityNodeInfo best = chooseBestFileCandidate(candidates);
         for (android.view.accessibility.AccessibilityNodeInfo n : candidates) {
@@ -691,31 +753,34 @@ public class MouseAccessibilityService extends AccessibilityService {
         } catch (Exception ignored) {}
         try { best.recycle(); } catch (Exception ignored) {}
         if (ok) {
-            // ChatGPT and similar sites may expose the attachment control as a
-            // "Add files and more" (+) menu first. After opening it, click the
-            // site's own "Add files" menu item. This never launches a generic
-            // Android document picker from the keyboard.
-            handler.postDelayed(this::clickFileMenuItem, 280);
+            // The site's own attachment control may open a second menu.
+            scheduleFileMenuClicks();
+            return true;
         }
-        return ok;
+
+        // WebViews frequently expose only the composer/editor, not the attachment
+        // icon. Tap the site's own lower-left composer area as a final fallback.
+        java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> roots2 = targetRoots();
+        android.graphics.Rect composer = new android.graphics.Rect();
+        for (android.view.accessibility.AccessibilityNodeInfo root : roots2) findComposerBounds(root, composer);
+        for (android.view.accessibility.AccessibilityNodeInfo root : roots2) try { root.recycle(); } catch (Exception ignored) {}
+        if (composer.width() > 40 && composer.height() > 20) {
+            float x = composer.left - Math.max(18f, Math.min(64f, composer.height() * 0.55f));
+            float y = composer.bottom - Math.max(18f, Math.min(44f, composer.height() * 0.35f));
+            if (x < 8) x = composer.left + Math.max(18f, Math.min(64f, composer.width() * 0.06f));
+            boolean tapped = tapScreenPoint(x, y);
+            if (tapped) scheduleFileMenuClicks();
+            return tapped;
+        }
+        return false;
     }
 
     private boolean clickFileMenuItem() {
         if (Build.VERSION.SDK_INT < 21) return false;
-        final String ownPackage = getPackageName();
         java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> candidates = new java.util.ArrayList<>();
-        try {
-            android.view.accessibility.AccessibilityNodeInfo active = getRootInActiveWindow();
-            if (active != null && !ownPackage.equals(active.getPackageName())) collectFileMenuCandidates(active, candidates);
-            if (candidates.isEmpty()) {
-                for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
-                    if (w == null) continue;
-                    android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
-                    if (root == null || ownPackage.equals(root.getPackageName())) continue;
-                    collectFileMenuCandidates(root, candidates);
-                }
-            }
-        } catch (Exception ignored) {}
+        java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> roots = targetRoots();
+        for (android.view.accessibility.AccessibilityNodeInfo root : roots) collectFileMenuCandidates(root, candidates);
+        for (android.view.accessibility.AccessibilityNodeInfo root : roots) try { root.recycle(); } catch (Exception ignored) {}
         android.view.accessibility.AccessibilityNodeInfo best = chooseBestFileMenuCandidate(candidates);
         for (android.view.accessibility.AccessibilityNodeInfo n : candidates) if (n != best) try { n.recycle(); } catch (Exception ignored) {}
         if (best == null) return false;
@@ -825,18 +890,10 @@ public class MouseAccessibilityService extends AccessibilityService {
 
     private boolean clickSendButton() {
         if (Build.VERSION.SDK_INT < 21) return false;
-        final String ownPackage = getPackageName();
         java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> candidates = new java.util.ArrayList<>();
-        android.view.accessibility.AccessibilityNodeInfo active = getRootInActiveWindow();
-        if (active != null && !ownPackage.equals(active.getPackageName())) collectSendCandidates(active, candidates);
-        try {
-            for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
-                if (w == null) continue;
-                android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
-                if (root == null || ownPackage.equals(root.getPackageName())) continue;
-                collectSendCandidates(root, candidates);
-            }
-        } catch (Exception ignored) {}
+        java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> roots = targetRoots();
+        for (android.view.accessibility.AccessibilityNodeInfo root : roots) collectSendCandidates(root, candidates);
+        for (android.view.accessibility.AccessibilityNodeInfo root : roots) try { root.recycle(); } catch (Exception ignored) {}
         android.view.accessibility.AccessibilityNodeInfo best = chooseBestSendCandidate(candidates);
         for (android.view.accessibility.AccessibilityNodeInfo n : candidates) {
             if (n != best) { try { n.recycle(); } catch (Exception ignored) {} }
@@ -853,20 +910,9 @@ public class MouseAccessibilityService extends AccessibilityService {
         // window for the largest lower editable composer, then tap its lower-right
         // action area. This is still a site UI gesture, never an Enter key.
         android.graphics.Rect composer = new android.graphics.Rect();
-        try {
-            if (active != null && !ownPackage.equals(active.getPackageName())) findComposerBounds(active, composer);
-            if (composer.width() <= 40) {
-                for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
-                    if (w == null) continue;
-                    android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
-                    if (root == null || ownPackage.equals(root.getPackageName())) continue;
-                    android.graphics.Rect r = new android.graphics.Rect();
-                    findComposerBounds(root, r);
-                    if (r.width() > composer.width() && r.centerY() > composer.centerY()) composer.set(r);
-                }
-            }
-        } catch (Exception ignored) {}
-        if (active != null) { try { active.recycle(); } catch (Exception ignored) {} }
+        java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> roots2 = targetRoots();
+        for (android.view.accessibility.AccessibilityNodeInfo root : roots2) findComposerBounds(root, composer);
+        for (android.view.accessibility.AccessibilityNodeInfo root : roots2) try { root.recycle(); } catch (Exception ignored) {}
         if (composer.width() <= 40 || composer.height() <= 20) return false;
         return tapComposerSendFallback(null, composer);
     }
@@ -874,8 +920,8 @@ public class MouseAccessibilityService extends AccessibilityService {
     private boolean tapComposerSendFallback(android.view.accessibility.AccessibilityNodeInfo ignored, android.graphics.Rect composer) {
         if (Build.VERSION.SDK_INT < 24) return false;
         if (composer == null || composer.width() <= 40 || composer.height() <= 20) return false;
-        float x = composer.right - Math.max(28, Math.min(56, composer.height() * 0.55f));
-        float y = composer.bottom - Math.max(18, Math.min(44, composer.height() * 0.35f));
+        float x = composer.right - Math.max(24, Math.min(72, composer.height() * 0.70f));
+        float y = composer.bottom - Math.max(16, Math.min(48, composer.height() * 0.38f));
         return tapScreenPoint(x, y);
     }
 
@@ -1031,6 +1077,18 @@ public class MouseAccessibilityService extends AccessibilityService {
         if(s!=null){s.dragMode=false; s.releaseSnap();}
     }
 
+    public static boolean toggleSelectFromKeyboard() {
+        MouseAccessibilityService s=instance;
+        if(s==null) return false;
+        s.selectMode = !s.selectMode;
+        return s.selectMode;
+    }
+
+    public static boolean isSelectModeFromKeyboard() {
+        MouseAccessibilityService s=instance;
+        return s != null && s.selectMode;
+    }
+
     public static void scrollFromKeyboard(int direction) {
         MouseAccessibilityService s=instance;
         if(s!=null) s.scroll(direction);
@@ -1065,8 +1123,10 @@ public class MouseAccessibilityService extends AccessibilityService {
     private void moveRelative(float dx, float dy) {
         if (cursor == null) showCursor();
         float oldX=x, oldY=y;
-        float maxX = Math.max(0, screenW - cursorSize);
-        float maxY = Math.max(0, screenH - cursorSize);
+        // Keep the pointer hotspot inside the complete physical display.
+        // This explicitly includes the status and navigation bars.
+        float maxX = Math.max(0, screenW - 1f);
+        float maxY = Math.max(0, screenH - 1f);
         x = Math.max(0, Math.min(maxX, x + dx));
         y = Math.max(0, Math.min(maxY, y + dy));
         WindowManager.LayoutParams lp = (WindowManager.LayoutParams)cursor.getTag();
@@ -1076,7 +1136,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         if (autoTargetMode && !dragMode) snapToNearbyClickable();
         if (magnifierEnabled) updateMagnifier();
         if(dragMode && Build.VERSION.SDK_INT>=24){
-            dispatchSwipe(oldX+3f,oldY+3f,x+3f,y+3f,35);
+            dispatchSwipe(oldX+3f,oldY+3f,x+3f,y+3f,12);
         }
     }
 
@@ -1099,7 +1159,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         Path path=new Path();
         path.moveTo(sx,sy);
         path.lineTo(ex,ey);
-        GestureDescription.StrokeDescription stroke=new GestureDescription.StrokeDescription(path,0,Math.max(40,duration));
+        GestureDescription.StrokeDescription stroke=new GestureDescription.StrokeDescription(path,0,Math.max(12,duration));
         dispatchGesture(new GestureDescription.Builder().addStroke(stroke).build(),null,null);
     }
 

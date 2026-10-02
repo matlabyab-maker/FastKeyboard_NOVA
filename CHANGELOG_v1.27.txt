@@ -1,0 +1,11 @@
+FastKeyboard_NOVA v1.27
+
+- Usage access permission added so Fast Keyboard Nova appears under Settings > Special app access > Usage access.
+- Added an in-app button to open the Usage access settings page.
+- The enabled system mouse Accessibility service is now the primary execution path for Send and File.
+- Usage access is used to identify the current foreground application and filter accessibility windows to that app when available.
+- File action now has a lower-left composer coordinate fallback when WebView exposes no attachment node.
+- File menu is retried several times after the site attachment control is opened.
+- Send action now uses the foreground application's accessibility windows and a stronger lower-right composer fallback.
+- No generic Android file picker is launched by the keyboard.
+- Mouse visual design remains unchanged.

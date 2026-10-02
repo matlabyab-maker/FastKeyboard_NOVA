@@ -10,8 +10,8 @@ android {
         applicationId 'com.fastkeyboard.nova'
         minSdk 23
         targetSdk 35
-        versionCode 16
-        versionName '1.26'
+        versionCode 21
+        versionName '1.31'
     }
 }
 

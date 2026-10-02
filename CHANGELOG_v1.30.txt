@@ -1,0 +1,6 @@
+FastKeyboard_NOVA v1.30
+
+- System mouse cursor can now travel across the complete physical display.
+- Cursor hotspot can enter the Android bottom navigation bar (Back/Home/Recents) and the top status bar area.
+- Accessibility overlay now uses full-screen/in-screen positioning and real display metrics.
+- Existing mouse layout, controls, and appearance were not changed.

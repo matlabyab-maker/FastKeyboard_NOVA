@@ -1,0 +1,5 @@
+FastKeyboard_NOVA v1.31
+
+- Fixed the mouse panel opened from the keyboard: mouse controls no longer dismiss the panel on the first press.
+- Keyboard mouse popup is touchable but non-focusable and not outside-dismissible, so left/right click, wheel, auto, Select, Drag, and Close remain usable.
+- Quick Settings mouse behavior is unchanged.

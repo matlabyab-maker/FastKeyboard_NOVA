@@ -132,16 +132,16 @@ public class FastKeyboardService extends InputMethodService {
         LinearLayout suggestions=row(0f); suggestions.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(44),0f)); suggestionButtons.clear(); for(int i=0;i<6;i++){Button b=key("",14,NAVY,CREAM); b.setSingleLine(true); b.setMaxLines(1); b.setEllipsize(android.text.TextUtils.TruncateAt.END); b.setHorizontallyScrolling(true); b.setIncludeFontPadding(false); b.setMinHeight(0); b.setMinWidth(0); b.setGravity(Gravity.CENTER); suggestions.addView(b,weight(1)); suggestionButtons.add(b); b.setOnClickListener(v->{String text=((Button)v).getText().toString(); if(!text.isEmpty()) applySuggestion(text);});} Button send=key("ارسال",14,Color.rgb(25,95,170),CREAM); send.setSingleLine(true); send.setMaxLines(1); send.setEllipsize(android.text.TextUtils.TruncateAt.END); send.setHorizontallyScrolling(true); send.setIncludeFontPadding(false); send.setMinHeight(0); send.setMinWidth(0); send.setGravity(Gravity.CENTER); send.setTag(CREAM); send.setBackground(makeBg(CREAM)); send.setContentDescription("ارسال"); send.setOnClickListener(v->performSendAction()); suggestions.addView(send,weight(1));
         Button file=key("فایل",14,Color.rgb(28,130,65),CREAM); file.setSingleLine(true); file.setMaxLines(1); file.setEllipsize(android.text.TextUtils.TruncateAt.END); file.setHorizontallyScrolling(true); file.setIncludeFontPadding(false); file.setMinHeight(0); file.setMinWidth(0); file.setGravity(Gravity.CENTER); file.setTag(CREAM); file.setBackground(makeBg(CREAM)); file.setContentDescription("فایل"); file.setOnClickListener(v->performFileAction()); suggestions.addView(file,weight(1));
         root.addView(suggestions); root.post(this::scheduleSuggestions);
-        LinearLayout nums=row(1f);String[] numsText=english?new String[]{"1","2","3","4","5","6","7","8","9","0"}:PERSIAN_NUMBERS;for(int i=0;i<10;i++){Button b=dualKey(numsText[i],NUMBER_MARKS[i],19,BROWN,RED,CREAM);nums.addView(b,weight(1));addDualKeyBehavior(b, numsText[i], NUMBER_MARKS[i]);}Button back=key("⌫",22,NAVY,PINK);nums.addView(back,weight(1.45f));addBackspaceRepeat(back);root.addView(nums);
+        LinearLayout nums=row(1f);String[] numsText=english?new String[]{"1","2","3","4","5","6","7","8","9","0"}:PERSIAN_NUMBERS;for(int i=0;i<10;i++){Button b=dualKey(numsText[i],NUMBER_MARKS[i],23,BROWN,RED,CREAM);nums.addView(b,weight(1));addDualKeyBehavior(b, numsText[i], NUMBER_MARKS[i]);}Button back=key("⌫",22,NAVY,PINK);nums.addView(back,weight(1.45f));addBackspaceRepeat(back);root.addView(nums);
         LinearLayout letters=new LinearLayout(this);letters.setOrientation(LinearLayout.HORIZONTAL);letters.setLayoutParams(new LinearLayout.LayoutParams(-1,0,2f));
         LinearLayout letterRows=new LinearLayout(this);letterRows.setOrientation(LinearLayout.VERTICAL);letterRows.setLayoutParams(new LinearLayout.LayoutParams(0,-1,11f));
         addLetterRow(letterRows,english?EN_R1:PERSIAN_R1,english?EN_MARKS_R1:PERSIAN_MARKS_R1);addLetterRow(letterRows,english?EN_R2:PERSIAN_R2,english?EN_MARKS_R2:PERSIAN_MARKS_R2);
         letters.addView(letterRows);Button enter=key("Enter",16,NAVY,Color.rgb(214,232,255));letters.addView(enter,new LinearLayout.LayoutParams(0,-1,1.2f));enter.setOnClickListener(v->sendKey(KeyEvent.KEYCODE_ENTER));root.addView(letters);
-        LinearLayout third=row(1f);Button capsB=key(capsLocked?"Caps 🔒":"Caps",16,NAVY,caps?YELLOW:CREAM);third.addView(capsB,weight(1.2f));capsB.setOnClickListener(v->{long now=android.os.SystemClock.uptimeMillis();if(now-lastCapsTap<450){capsLocked=!capsLocked;caps=capsLocked;lastCapsTap=0;}else{caps=!caps;lastCapsTap=now;}rebuild();});String[] r3=english?EN_R3:PERSIAN_R3;for(int i=0;i<r3.length;i++){String s=caps?r3[i].toUpperCase():r3[i];Button b=key(s,20,NAVY,CREAM);third.addView(b,weight(1));final String out=s;b.setOnClickListener(v->{commit(out);if(!capsLocked&&caps){caps=false;rebuild();}});if(!english&&s.equals("و")){addSymbolVariantsLongPress(b,VAV_VARIANTS);}}Button qmark=key("؟",20,RED,CREAM);third.addView(qmark,weight(1));qmark.setOnClickListener(v->commit("؟"));root.addView(third);
+        LinearLayout third=row(1f);Button capsB=key(capsLocked?"Caps 🔒":"Caps",16,NAVY,caps?YELLOW:CREAM);third.addView(capsB,weight(1.2f));capsB.setOnClickListener(v->{long now=android.os.SystemClock.uptimeMillis();if(now-lastCapsTap<450){capsLocked=!capsLocked;caps=capsLocked;lastCapsTap=0;}else{caps=!caps;lastCapsTap=now;}rebuild();});String[] r3=english?EN_R3:PERSIAN_R3;for(int i=0;i<r3.length;i++){String s=caps?r3[i].toUpperCase():r3[i];Button b=key(s,24,NAVY,CREAM);third.addView(b,weight(1));final String out=s;b.setOnClickListener(v->{commit(out);if(!capsLocked&&caps){caps=false;rebuild();}});if(!english&&s.equals("و")){addSymbolVariantsLongPress(b,VAV_VARIANTS);}}Button qmark=key("؟",24,RED,CREAM);third.addView(qmark,weight(1));qmark.setOnClickListener(v->commit("؟"));root.addView(third);
         LinearLayout bottom=row(1.08f);Button emoji=keyWithIcon("اموجی","☺",14,NAVY,CREAM);Button sym=keyWithIcon("123\n!@...","⌘",13,NAVY,symbols?YELLOW:CREAM);Button globe=key(english?"🌐 EN":"🌐 FA",18,BLUE,CREAM);Button space=key("Space",19,NAVY,CREAM);Button comma=key(english?",":"،",23,RED,CREAM);Button question=key(".",23,RED,CREAM);Button pm=key("◆",18,RED,CREAM);Button left=key("←",23,BLUE,CREAM);Button right=key("→",23,BLUE,CREAM);Button up=key("↑",23,BLUE,CREAM);Button down=key("↓",23,BLUE,CREAM);bottom.addView(emoji,weight(.82f));bottom.addView(sym,weight(1.15f));bottom.addView(globe,weight(.9f));bottom.addView(space,weight(2.35f));bottom.addView(comma,weight(.72f));bottom.addView(question,weight(.72f));bottom.addView(pm,weight(.72f));bottom.addView(left,weight(.95f));bottom.addView(right,weight(.95f));bottom.addView(up,weight(.82f));bottom.addView(down,weight(.82f));emoji.setOnClickListener(v->showEmoji(v));sym.setOnClickListener(v->showSymbols(v));globe.setOnClickListener(v->{english=!english;symbols=false;rebuild();});space.setOnClickListener(v->commitSpaceAndLearn());comma.setOnClickListener(v->commit(((Button)v).getText().toString()));question.setOnClickListener(v->commit("."));pm.setOnClickListener(v->commit("◆"));addSymbolVariantsLongPress(pm,PM_VARIANTS);addArrowRepeat(left,KeyEvent.KEYCODE_DPAD_LEFT);addArrowRepeat(right,KeyEvent.KEYCODE_DPAD_RIGHT);addArrowRepeat(up,KeyEvent.KEYCODE_DPAD_UP);addArrowRepeat(down,KeyEvent.KEYCODE_DPAD_DOWN);root.addView(bottom);return root;
     }
 
-    private void addLetterRow(LinearLayout parent,String[] letters,String[] marks){LinearLayout r=row(1f);for(int i=0;i<letters.length;i++){String s=caps?letters[i].toUpperCase():letters[i];Button b=key(s,22,NAVY,CREAM);r.addView(b,weight(1));final String out=s;b.setOnClickListener(v->{commit(out);if(!capsLocked&&caps){caps=false;rebuild();}});if(!english&&s.equals("ا")){addAlifLongPress(b);}else if(!english&&s.equals("ی")){addSymbolVariantsLongPress(b,YEH_VARIANTS);}else if(!english&&s.equals("و")){addSymbolVariantsLongPress(b,VAV_VARIANTS);}}parent.addView(r);}
+    private void addLetterRow(LinearLayout parent,String[] letters,String[] marks){LinearLayout r=row(1f);for(int i=0;i<letters.length;i++){String s=caps?letters[i].toUpperCase():letters[i];Button b=key(s,26,NAVY,CREAM);r.addView(b,weight(1));final String out=s;b.setOnClickListener(v->{commit(out);if(!capsLocked&&caps){caps=false;rebuild();}});if(!english&&s.equals("ا")){addAlifLongPress(b);}else if(!english&&s.equals("ی")){addSymbolVariantsLongPress(b,YEH_VARIANTS);}else if(!english&&s.equals("و")){addSymbolVariantsLongPress(b,VAV_VARIANTS);}}parent.addView(r);}
     private Button dualKey(String main,String mark,float size,int fg,int markColor,int bg){DualButton b=new DualButton(this);b.setMainMark(main,mark,size,fg,markColor);b.setAllCaps(false);b.setTypeface(Typeface.create("sans",Typeface.NORMAL));b.setPadding(0,0,0,0);b.setMinHeight(0);b.setMinWidth(0);b.setTag(main);b.setBackground(makeBg(bg));installHighlight(b);return b;}
     private static class DualButton extends Button {
         private String main="", mark=""; private float mainSize=20; private int mainColor=Color.BLACK, markColor=Color.RED;
@@ -457,7 +457,7 @@ public class FastKeyboardService extends InputMethodService {
             }
             if(e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL){
                 MouseAccessibilityService.endDragFromKeyboard();
-                if(e.getAction()==MotionEvent.ACTION_UP && !selectMode[0]) MouseAccessibilityService.clickFromKeyboard(false);
+                if(e.getAction()==MotionEvent.ACTION_UP && !MouseAccessibilityService.isSelectModeFromKeyboard()) MouseAccessibilityService.clickFromKeyboard(false);
                 leftHeld[0]=false;
                 return true;
             }
@@ -473,8 +473,9 @@ public class FastKeyboardService extends InputMethodService {
             MouseAccessibilityService.toggleAutoTargetFromKeyboard();
         });
         select.setOnClickListener(v->{
-            selectMode[0]=!selectMode[0];
-            select.setText(selectMode[0]?"Select ✓":"Select");
+            boolean enabled = MouseAccessibilityService.toggleSelectFromKeyboard();
+            selectMode[0]=enabled;
+            select.setText(enabled?"Select ✓":"Select");
         });
 
         transparency.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
@@ -519,8 +520,10 @@ public class FastKeyboardService extends InputMethodService {
         });
 
         activePopup=new PopupWindow(panel,dp(430),dp(250),true);
-        activePopup.setOutsideTouchable(true);
-        stylePopup(activePopup);
+        // The mouse opened from the keyboard must stay touchable while its controls are used.
+        // A focusable/outside-dismissible PopupWindow can be dismissed by the IME/focus change
+        // on the first button press, making the mouse buttons appear non-functional.
+        styleMousePopup(activePopup);
         activePopup.setOnDismissListener(() -> MouseAccessibilityService.hideCursorFromKeyboard());
         int[] anchorLoc=popupLocation(anchor);
         int ph=dp(250);
@@ -601,6 +604,16 @@ public class FastKeyboardService extends InputMethodService {
     private void showRepeatGridPopup(View anchor,String[] items,int cell,int height){int[] loc=popupLocation(anchor);dismissPopup();ScrollView sv=scrollBox();addRepeatGrid(gridContainer(sv),items,cell);activePopup=new PopupWindow(sv,dp(330),dp(height),true);stylePopup(activePopup);showPopupAt(activePopup,loc[0],loc[1],height);}
     private void addRepeatGrid(LinearLayout box,String[] items,int cell){LinearLayout r=null;int count=0;for(String item:items){if(count%7==0){r=new LinearLayout(this);r.setOrientation(LinearLayout.HORIZONTAL);box.addView(r,new LinearLayout.LayoutParams(-1,dp(cell)));}final String shown=decodeSymbol(item);Button b=key(shown,20,NAVY,CREAM);r.addView(b,weight(1));addDualKeyBehavior(b,shown,shown);count++;}}
     private void stylePopup(PopupWindow pw){pw.setBackgroundDrawable(new ColorDrawable(CREAM));pw.setOutsideTouchable(true);pw.setFocusable(true);pw.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);pw.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);pw.setElevation(dp(8));pw.setTouchInterceptor((v,e)->false);}
+    private void styleMousePopup(PopupWindow pw){
+        pw.setBackgroundDrawable(new ColorDrawable(CREAM));
+        pw.setTouchable(true);
+        pw.setFocusable(false);
+        pw.setOutsideTouchable(false);
+        pw.setInputMethodMode(PopupWindow.INPUT_METHOD_NOT_NEEDED);
+        pw.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        pw.setElevation(dp(8));
+        pw.setTouchInterceptor((v,e)->false);
+    }
     private int[] popupLocation(View anchor){int[] loc=new int[2];anchor.getLocationOnScreen(loc);return loc;}
     private void showPopupAbove(View anchor,PopupWindow pw,int height){int[] loc=popupLocation(anchor);showPopupAt(pw,loc[0],loc[1],height);}
     private void showPopupAt(PopupWindow pw,int x,int anchorY,int height){int h=dp(height);int screenH=getResources().getDisplayMetrics().heightPixels;int y=anchorY-h;if(y<dp(4))y=dp(4);if(y+h>screenH-dp(4))y=Math.max(dp(4),screenH-h-dp(4));if(currentRoot!=null)pw.showAtLocation(currentRoot,Gravity.TOP|Gravity.LEFT,Math.max(0,x),y);else pw.showAsDropDown(currentRoot,0,-h);}
