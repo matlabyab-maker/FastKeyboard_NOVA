@@ -22,6 +22,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
@@ -31,16 +36,25 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Install Gradle 8.11.1
+      - name: Build Debug APK with dependency retry
         shell: bash
         run: |
-          curl -L --fail -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
-          unzip -q /tmp/gradle.zip -d /tmp/gradle
-
-      - name: Build Debug APK
-        shell: bash
-        run: |
-          /tmp/gradle/gradle-8.11.1/bin/gradle :app:assembleDebug --no-daemon --stacktrace
+          set -o pipefail
+          for attempt in 1 2 3; do
+            echo "Build attempt ${attempt}/3"
+            if [ "$attempt" -eq 1 ]; then
+              gradle :app:assembleDebug --no-daemon --stacktrace
+            else
+              gradle :app:assembleDebug --no-daemon --stacktrace --refresh-dependencies
+            fi
+            status=$?
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+            echo "Gradle build failed on attempt ${attempt} (status ${status}). Retrying..."
+            sleep 10
+          done
+          exit 1
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

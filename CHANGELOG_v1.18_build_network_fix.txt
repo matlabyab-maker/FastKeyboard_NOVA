@@ -1,0 +1,21 @@
+FastKeyboard_NOVA v1.18
+
+اصلاح خطاهای لاگ آخرین Build.
+
+نتیجه بررسی logs_100144758151.zip:
+- خطای Java/Android source در پروژه مشاهده نشد.
+- Build قبل از رسیدن به مرحله compile به علت Resolve نشدن وابستگی‌های Android Gradle Plugin متوقف شده بود.
+- نمونه‌ها: Gson 2.10.1، ASM 9.6، commons-io 2.13.0، httpmime 4.5.6 و چند وابستگی دیگر.
+- برخی POMها از repo.maven.apache.org قابل parse نبوده‌اند و برخی وابستگی‌ها نیز پیدا نشده‌اند.
+- این الگو نشان‌دهنده شکست دریافت وابستگی‌های Maven در GitHub Actions است، نه خطای کد دکمه «فایل».
+
+اصلاحات v1.18:
+1. repository جایگزین repo1.maven.org برای Plugin Management و dependency resolution اضافه شد.
+2. Gradle 8.11.1 با gradle/actions/setup-gradle@v4 تنظیم شد تا cache وابستگی‌ها نیز استفاده شود.
+3. Build تا 3 بار با فاصله 10 ثانیه تلاش می‌کند.
+4. تلاش دوم و سوم با --refresh-dependencies انجام می‌شود.
+5. سایر کدهای کیبورد و طراحی موس دستکاری نشده‌اند.
+6. قابلیت جدید دکمه «فایل» نسخه v1.17 حفظ شده است.
+
+توجه:
+در این محیط Build واقعی Android اجرا نشد؛ اصلاح بر اساس لاگ GitHub Actions و صحت ساختار پروژه انجام شده است.
