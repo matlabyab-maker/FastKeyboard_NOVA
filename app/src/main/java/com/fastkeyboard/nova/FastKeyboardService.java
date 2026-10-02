@@ -263,15 +263,12 @@ public class FastKeyboardService extends InputMethodService {
         });
     }
     private void performSendAction(){
-        InputConnection ic=getCurrentInputConnection();
-        if(ic==null) return;
-        boolean handled=false;
-        try { handled=ic.performEditorAction(EditorInfo.IME_ACTION_SEND); } catch(Exception ignored) {}
+        // This button is intentionally NOT an Enter/IME action.
+        // It is meant to activate the visible blue Send button of the active app
+        // (for example ChatGPT in a browser) through the AccessibilityService.
+        boolean handled = MouseAccessibilityService.clickSendButtonFromKeyboard();
         if(!handled){
-            try { handled=ic.performEditorAction(EditorInfo.IME_ACTION_DONE); } catch(Exception ignored) {}
-        }
-        if(!handled){
-            sendKey(KeyEvent.KEYCODE_ENTER);
+            android.widget.Toast.makeText(this, "برای ارسال واقعی، «موس سیستمی» را در تنظیمات Android فعال کنید.", android.widget.Toast.LENGTH_SHORT).show();
         }
         scheduleSuggestions();
     }

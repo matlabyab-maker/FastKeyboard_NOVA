@@ -1,4 +1,4 @@
-FastKeyboard_NOVA v1.5
+FastKeyboard_NOVA v1.15
 
 # Fast Keyboard Nova
 
@@ -26,6 +26,11 @@ APK به‌عنوان Artifact با نام `FastKeyboard-Nova-debug-apk` منت�
 چیدمان و قابلیت‌های مبنای قبلی عمداً در این انتقال تغییر داده نشده‌اند. اصلاحات داخلی بعدی باید جداگانه و مرحله‌به‌مرحله اعمال شوند.
 
 
-## v1.13 — Send button
+## v1.15 — Exact mouse window and working mouse controls
 
-The suggestion bar now has six suggestion cells plus one fixed **ارسال** cell. The Send button is blue and is intended to trigger the active editor's send action. It tries `IME_ACTION_SEND`, then `IME_ACTION_DONE`, and finally Enter as a compatibility fallback. The keyboard layout and mouse design are unchanged.
+- Quick Settings mouse window now uses the user's supplied reference image `mouse_reference.jpg` as the exact visual base.
+- Transparent interactive hit areas are placed over the reference controls, so the image appearance is not redesigned.
+- Close, Drag, touch field, left click, both wheel buttons, automatic movement, right click and Select are wired to the corresponding actions.
+- Right click first tries Android context-click/long-click and falls back to a long-press gesture.
+- The single resize grip remains at the top-left position shown in the supplied image.
+- The existing real Send-button behavior from v1.14 is retained.

@@ -5,6 +5,7 @@ import android.accessibilityservice.GestureDescription;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.graphics.Color;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ColorSpace;
 import android.hardware.HardwareBuffer;
 import android.view.Display;
@@ -90,230 +91,161 @@ public class MouseAccessibilityService extends AccessibilityService {
 
     public void showMouseOverlay() {
         if (wm == null) return;
-        showCursor();
         if (mousePanel != null) return;
+        showCursor();
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(4),dp(4),dp(4),dp(4));
-        root.setClickable(true);
-        root.setFocusable(false);
-        GradientDrawable panelBg = new GradientDrawable();
-        panelBg.setColor(Color.argb(245, 250, 250, 250));
-        panelBg.setStroke(dp(2), Color.rgb(45,45,55));
-        panelBg.setCornerRadius(dp(6));
-        root.setBackground(panelBg);
+        // Quick Settings uses the user's exact supplied mouse-window image as the
+        // visual base. Interactive transparent hit areas are placed over the image,
+        // so the appearance stays unchanged while every control remains functional.
+        final int imageW = 613;
+        final int imageH = 287;
+        final int panelW = Math.min(dp(imageW), Math.max(dp(200), screenW - dp(8)));
+        final int panelH = Math.max(dp(132), Math.round(panelW * imageH / (float) imageW));
 
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        GradientDrawable headerBg = new GradientDrawable();
-        headerBg.setColor(Color.rgb(238,242,248));
-        headerBg.setStroke(dp(1), Color.rgb(70,70,80));
-        header.setBackground(headerBg);
-
-        TextView title = new TextView(this);
-        title.setText("موس Fast Keyboard Nova");
-        title.setTextSize(16);
-        title.setTextColor(Color.rgb(10,38,92));
-        title.setGravity(Gravity.CENTER);
-        header.addView(title, new LinearLayout.LayoutParams(0, dp(58), 1f));
-
-        Button dragHandle = new Button(this);
-        dragHandle.setText("Drag");
-        dragHandle.setTextSize(16);
-        dragHandle.setAllCaps(false);
-        dragHandle.setGravity(Gravity.CENTER);
-        header.addView(dragHandle, new LinearLayout.LayoutParams(dp(72), dp(58)));
-
-        Button closeButton = new Button(this);
-        closeButton.setText("Close");
-        closeButton.setTextSize(15);
-        closeButton.setAllCaps(false);
-        closeButton.setGravity(Gravity.CENTER);
-        header.addView(closeButton, new LinearLayout.LayoutParams(dp(72), dp(58)));
-        dragHandle.setBackgroundColor(LIGHT_CREAM);
-        closeButton.setBackgroundColor(LIGHT_ORANGE);
-        root.addView(header, new LinearLayout.LayoutParams(-1, dp(62)));
-        installMouseTap(closeButton, LIGHT_ORANGE, this::hideMouseOverlay);
-
-        final float[] panelLast = {0f,0f};
-        final boolean[] panelMoving = {false};
-        final boolean[] panelDragged = {false};
-        dragHandle.setEnabled(true);
-        dragHandle.setClickable(true);
-        dragHandle.setOnTouchListener((v,e)->{
-            if (mousePanelLp == null || wm == null) return true;
-            if (e.getAction()==MotionEvent.ACTION_DOWN) {
-                flashAllMouseButtons(LIGHT_CREAM);
-                panelLast[0]=e.getRawX();
-                panelLast[1]=e.getRawY();
-                panelMoving[0]=true;
-                panelDragged[0]=false;
-                return true;
-            }
-            if (e.getAction()==MotionEvent.ACTION_MOVE && panelMoving[0]) {
-                float dx=e.getRawX()-panelLast[0];
-                float dy=e.getRawY()-panelLast[1];
-                if (Math.abs(dx)>=2f || Math.abs(dy)>=2f) {
-                    panelDragged[0]=true;
-                    mousePanelLp.x -= Math.round(dx);
-                    mousePanelLp.y -= Math.round(dy);
-                    int maxX=Math.max(0, screenW-mousePanel.getWidth()-dp(4));
-                    int maxY=Math.max(0, screenH-mousePanel.getHeight()-dp(4));
-                    mousePanelLp.x=Math.max(0,Math.min(maxX,mousePanelLp.x));
-                    mousePanelLp.y=Math.max(0,Math.min(maxY,mousePanelLp.y));
-                    try { wm.updateViewLayout(mousePanel,mousePanelLp); } catch(Exception ignored) {}
-                    panelLast[0]=e.getRawX();
-                    panelLast[1]=e.getRawY();
-                }
-                return true;
-            }
-            if (e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL) {
-                panelMoving[0]=false;
-                // Consume the entire gesture. Never forward a drag gesture to the
-                // keyboard beneath the accessibility window.
-                return true;
-            }
-            return true;
-        });
-
-        final TextView pad = new TextView(this);
-        pad.setText("میدان لمسی\nحرکت نشانگر");
-        pad.setTextSize(16);
-        pad.setTextColor(Color.rgb(190,194,202));
-        pad.setGravity(Gravity.CENTER);
-        GradientDrawable pg = new GradientDrawable();
-        pg.setColor(Color.rgb(242,244,248));
-        pg.setStroke(dp(1), Color.rgb(190,194,202));
-        pad.setBackground(pg);
-        root.addView(pad, new LinearLayout.LayoutParams(-1, 125));
-
-        final float[] last = {0,0};
-        final boolean[] moving = {false};
-        pad.setOnTouchListener((v,e)->{
-            if (e.getAction()==MotionEvent.ACTION_DOWN) {
-                last[0]=e.getRawX(); last[1]=e.getRawY(); moving[0]=true; return true;
-            }
-            if (e.getAction()==MotionEvent.ACTION_MOVE && moving[0]) {
-                float dx=e.getRawX()-last[0], dy=e.getRawY()-last[1];
-                if (Math.abs(dx)>=0.5f || Math.abs(dy)>=0.5f) {
-                    moveRelative(dx*2.0f,dy*2.0f);
-                    last[0]=e.getRawX(); last[1]=e.getRawY();
-                }
-                return true;
-            }
-            if (e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL) { moving[0]=false; return true; }
-            return true;
-        });
-
-        LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        Button left = new Button(this); left.setText("کلیک چپ"); left.setTextSize(15);
-        Button pointerSize = new Button(this); pointerSize.setText("↕"); pointerSize.setTextSize(25);
-        Button auto = new Button(this); auto.setText("حرکت\nخودکار"); auto.setTextSize(11);
-        Button magnify = new Button(this); magnify.setText("↕"); magnify.setTextSize(25);
-        Button right = new Button(this); right.setText("کلیک راست"); right.setTextSize(15);
-        Button select = new Button(this); select.setText("Select"); select.setTextSize(14); select.setAllCaps(false);
-        mouseButtons.clear();
-        mouseButtons.add(dragHandle); mouseButtons.add(closeButton);
-        mouseButtons.add(left); mouseButtons.add(pointerSize); mouseButtons.add(auto); mouseButtons.add(magnify); mouseButtons.add(right); mouseButtons.add(select);
-        left.setBackgroundColor(LIGHT_BLUE);
-        pointerSize.setBackgroundColor(LIGHT_CREAM);
-        auto.setBackgroundColor(LIGHT_GREEN);
-        magnify.setBackgroundColor(LIGHT_CREAM);
-        right.setBackgroundColor(LIGHT_BLUE);
-        select.setBackgroundColor(LIGHT_YELLOW);
-        row.addView(left,new LinearLayout.LayoutParams(0,58,2.1f));
-        row.addView(pointerSize,new LinearLayout.LayoutParams(0,58,.58f));
-        row.addView(auto,new LinearLayout.LayoutParams(0,58,2.0f));
-        row.addView(magnify,new LinearLayout.LayoutParams(0,58,.58f));
-        row.addView(right,new LinearLayout.LayoutParams(0,58,2.1f));
-        row.addView(select,new LinearLayout.LayoutParams(0,58,1.25f));
-        root.addView(row);
-
-        installMouseTap(pointerSize, LIGHT_CREAM, this::cycleCursorSize);
-        installMouseTap(magnify, LIGHT_CREAM, this::toggleMagnifier);
-        installMouseTap(auto, LIGHT_GREEN, this::toggleAutoTargetMode);
-        installMouseTap(select, LIGHT_YELLOW, () -> {
-            selectMode=!selectMode;
-            select.setText(selectMode ? "Select ✓" : "Select");
-            if (!selectMode) dragMode=false;
-        });
-
-        // Hold left while moving the touch field to perform drag/select.
-        left.setOnTouchListener((v,e)->{
-            if (e.getAction()==MotionEvent.ACTION_DOWN) {
-                flashAllMouseButtons(LIGHT_BLUE);
-                beginDragFromKeyboard();
-                return true;
-            }
-            if (e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL) {
-                endDragFromKeyboard();
-                if (e.getAction()==MotionEvent.ACTION_UP && !selectMode) click(false);
-                return true;
-            }
-            return true;
-        });
-        installMouseTap(right, LIGHT_BLUE, () -> click(true));
-
-        LinearLayout transparencyRow = new LinearLayout(this);
-        transparencyRow.setOrientation(LinearLayout.HORIZONTAL);
-        transparencyRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView transparencyLabel = new TextView(this);
-        transparencyLabel.setText("شفافیت");
-        transparencyLabel.setTextSize(13);
-        transparencyLabel.setTextColor(Color.rgb(10,38,92));
-        transparencyRow.addView(transparencyLabel, new LinearLayout.LayoutParams(dp(58), dp(42)));
-        SeekBar transparencyBar = new SeekBar(this);
-        transparencyBar.setMax(80);
-        int savedTransparency = getSharedPreferences("mouse_settings", MODE_PRIVATE).getInt("panel_transparency", 100);
-        savedTransparency = Math.max(20, Math.min(100, savedTransparency));
-        transparencyBar.setProgress(savedTransparency - 20);
-        transparencyRow.addView(transparencyBar, new LinearLayout.LayoutParams(0, dp(42), 1f));
-        TextView transparencyValue = new TextView(this);
-        transparencyValue.setText(savedTransparency + "%");
-        transparencyValue.setTextSize(12);
-        transparencyValue.setGravity(Gravity.CENTER);
-        transparencyValue.setTextColor(Color.rgb(10,38,92));
-        transparencyRow.addView(transparencyValue, new LinearLayout.LayoutParams(dp(48), dp(42)));
-        root.addView(transparencyRow, new LinearLayout.LayoutParams(-1, dp(46)));
-        root.setAlpha(savedTransparency / 100f);
-        transparencyBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar bar, int progress, boolean fromUser) {
-                int value = Math.max(20, Math.min(100, progress + 20));
-                root.setAlpha(value / 100f);
-                transparencyValue.setText(value + "%");
-                if (fromUser) getSharedPreferences("mouse_settings", MODE_PRIVATE).edit().putInt("panel_transparency", value).apply();
-            }
-            @Override public void onStartTrackingTouch(SeekBar bar) {}
-            @Override public void onStopTrackingTouch(SeekBar bar) {}
-        });
-
-        autoTargetButton = auto;
-
-        FrameLayout panel = new FrameLayout(this);
+        final FrameLayout panel = new FrameLayout(this);
         panel.setClipChildren(false);
         panel.setClipToPadding(false);
-        panel.addView(root, new FrameLayout.LayoutParams(-1, -1));
-        addResizeHandle(panel, Gravity.LEFT | Gravity.TOP, -1, -1);
-        addResizeHandle(panel, Gravity.RIGHT | Gravity.TOP, 1, -1);
-        addResizeHandle(panel, Gravity.LEFT | Gravity.BOTTOM, -1, 1);
-        addResizeHandle(panel, Gravity.RIGHT | Gravity.BOTTOM, 1, 1);
+        panel.setBackgroundColor(Color.WHITE);
+
+        ImageView reference = new ImageView(this);
+        reference.setImageBitmap(BitmapFactory.decodeResource(getResources(), R.drawable.mouse_reference));
+        reference.setScaleType(ImageView.ScaleType.FIT_XY);
+        reference.setClickable(false);
+        panel.addView(reference, new FrameLayout.LayoutParams(-1, -1));
+
+        final float sx = 1f / imageW;
+        final float sy = 1f / imageH;
+        final java.util.ArrayList<View> hitViews = new java.util.ArrayList<>();
+
+        // Coordinates are taken directly from the supplied 613x287 reference image.
+        final View touchPad = transparentHit(panel, 0, 0, 563, 210, hitViews);
+        final View close = transparentHit(panel, 563, 0, 50, 105, hitViews);
+        final View drag = transparentHit(panel, 563, 105, 50, 105, hitViews);
+        final View left = transparentHit(panel, 0, 210, 169, 77, hitViews);
+        final View wheel1 = transparentHit(panel, 169, 210, 74, 77, hitViews);
+        final View auto = transparentHit(panel, 243, 210, 80, 77, hitViews);
+        final View wheel2 = transparentHit(panel, 323, 210, 75, 77, hitViews);
+        final View right = transparentHit(panel, 398, 210, 114, 77, hitViews);
+        final View select = transparentHit(panel, 512, 210, 101, 77, hitViews);
+        final View resize = transparentHit(panel, 0, 0, 70, 45, hitViews);
+
+        // Reposition hit areas whenever the panel size changes, preserving the exact
+        // proportions of the supplied image on different displays.
+        panel.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{
+            int w = r-l, h = b-t;
+            setHit(panel, touchPad, 0,0,563,210,w,h);
+            setHit(panel, close, 563,0,50,105,w,h);
+            setHit(panel, drag, 563,105,50,105,w,h);
+            setHit(panel, left, 0,210,169,77,w,h);
+            setHit(panel, wheel1, 169,210,74,77,w,h);
+            setHit(panel, auto, 243,210,80,77,w,h);
+            setHit(panel, wheel2, 323,210,75,77,w,h);
+            setHit(panel, right, 398,210,114,77,w,h);
+            setHit(panel, select, 512,210,101,77,w,h);
+            setHit(panel, resize, 0,0,70,45,w,h);
+        });
+
+        close.setOnClickListener(v -> hideMouseOverlay());
+
+        final float[] padLast = {0f,0f};
+        final boolean[] padMoving = {false};
+        touchPad.setOnTouchListener((v,e)->{
+            if (e.getAction()==MotionEvent.ACTION_DOWN) {
+                padLast[0]=e.getRawX(); padLast[1]=e.getRawY(); padMoving[0]=true; return true;
+            }
+            if (e.getAction()==MotionEvent.ACTION_MOVE && padMoving[0]) {
+                float dx=e.getRawX()-padLast[0], dy=e.getRawY()-padLast[1];
+                if (Math.abs(dx)>=0.5f || Math.abs(dy)>=0.5f) {
+                    moveRelative(dx*2f,dy*2f);
+                    padLast[0]=e.getRawX(); padLast[1]=e.getRawY();
+                }
+                return true;
+            }
+            if (e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL) {
+                padMoving[0]=false; return true;
+            }
+            return true;
+        });
+
+        // Drag moves the Quick Settings mouse window itself.
+        final float[] dragLast = {0f,0f};
+        drag.setOnTouchListener((v,e)->{
+            if (mousePanelLp == null || wm == null) return true;
+            if (e.getAction()==MotionEvent.ACTION_DOWN) {
+                dragLast[0]=e.getRawX(); dragLast[1]=e.getRawY(); return true;
+            }
+            if (e.getAction()==MotionEvent.ACTION_MOVE) {
+                float dx=e.getRawX()-dragLast[0], dy=e.getRawY()-dragLast[1];
+                mousePanelLp.x += Math.round(dx);
+                mousePanelLp.y += Math.round(dy);
+                mousePanelLp.x=Math.max(0,Math.min(screenW-mousePanelLp.width,mousePanelLp.x));
+                mousePanelLp.y=Math.max(0,Math.min(screenH-mousePanelLp.height,mousePanelLp.y));
+                try { wm.updateViewLayout(mousePanel,mousePanelLp); } catch(Exception ignored) {}
+                dragLast[0]=e.getRawX(); dragLast[1]=e.getRawY();
+                return true;
+            }
+            return true;
+        });
+
+        left.setOnClickListener(v -> click(false));
+        right.setOnClickListener(v -> click(true));
+        wheel1.setOnClickListener(v -> scroll(-1));
+        wheel2.setOnClickListener(v -> scroll(1));
+        auto.setOnClickListener(v -> toggleAutoTargetMode());
+        select.setOnClickListener(v -> selectMode = !selectMode);
+
+        // One functional resize grip at the same top-left location shown in the image.
+        final float[] resizeLast = {0f,0f};
+        final int[] resizeBase = {panelW,panelH};
+        resize.setOnTouchListener((v,e)->{
+            if (e.getAction()==MotionEvent.ACTION_DOWN) {
+                resizeLast[0]=e.getRawX(); resizeLast[1]=e.getRawY();
+                resizeBase[0]=mousePanelLp != null ? mousePanelLp.width : panelW;
+                resizeBase[1]=mousePanelLp != null ? mousePanelLp.height : panelH;
+                return true;
+            }
+            if (e.getAction()==MotionEvent.ACTION_MOVE && mousePanelLp != null && wm != null) {
+                int nw=Math.max(dp(200),resizeBase[0]-Math.round(e.getRawX()-resizeLast[0]));
+                int nh=Math.max(dp(132),Math.round(nw*imageH/(float)imageW));
+                mousePanelLp.width=nw; mousePanelLp.height=nh;
+                try { wm.updateViewLayout(mousePanel,mousePanelLp); } catch(Exception ignored) {}
+                return true;
+            }
+            return true;
+        });
 
         mousePanel = panel;
-        int initialW = Math.min(dp(430), screenW - dp(16));
-        int initialH = dp(390);
+        int xPos = Math.max(0, screenW-panelW-dp(8));
+        int yPos = Math.max(0, dp(72));
         mousePanelLp = new WindowManager.LayoutParams(
-            initialW, initialH,
+            panelW, panelH,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL |
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT);
         mousePanelLp.gravity = Gravity.TOP | Gravity.LEFT;
-        mousePanelLp.x = Math.max(0, screenW - initialW - dp(8));
-        mousePanelLp.y = dp(72);
+        mousePanelLp.x=xPos; mousePanelLp.y=yPos;
         panel.setElevation(30f);
-        wm.addView(panel, mousePanelLp);
+        wm.addView(panel,mousePanelLp);
+    }
+
+    private View transparentHit(FrameLayout parent,int x,int y,int w,int h,java.util.ArrayList<View> list){
+        View v=new View(this);
+        v.setBackgroundColor(Color.TRANSPARENT);
+        v.setClickable(true);
+        parent.addView(v,new FrameLayout.LayoutParams(1,1));
+        list.add(v);
+        return v;
+    }
+
+    private void setHit(FrameLayout parent,View v,int x,int y,int w,int h,int pw,int ph){
+        FrameLayout.LayoutParams lp=(FrameLayout.LayoutParams)v.getLayoutParams();
+        lp.leftMargin=Math.round(x*pw/613f);
+        lp.topMargin=Math.round(y*ph/287f);
+        lp.width=Math.max(1,Math.round(w*pw/613f));
+        lp.height=Math.max(1,Math.round(h*ph/287f));
+        v.setLayoutParams(lp);
     }
 
     private void installMouseTap(Button b, int color, final Runnable action){
@@ -677,6 +609,131 @@ public class MouseAccessibilityService extends AccessibilityService {
         if (s != null) s.click(right);
     }
 
+    /**
+     * Click the active application's accessible Send button. This is deliberately
+     * separate from the keyboard Enter key: the goal is to perform the same UI
+     * action as the blue Send button shown by sites such as ChatGPT.
+     */
+    public static boolean clickSendButtonFromKeyboard() {
+        MouseAccessibilityService s = instance;
+        return s != null && s.clickSendButton();
+    }
+
+    private boolean clickSendButton() {
+        if (Build.VERSION.SDK_INT < 21) return false;
+
+        final String ownPackage = getPackageName();
+        java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> candidates =
+                new java.util.ArrayList<>();
+
+        // Prefer the active window, then inspect other interactive windows.
+        android.view.accessibility.AccessibilityNodeInfo active = getRootInActiveWindow();
+        if (active != null && !ownPackage.equals(active.getPackageName())) {
+            collectSendCandidates(active, candidates);
+        }
+        if (candidates.isEmpty() && Build.VERSION.SDK_INT >= 21) {
+            try {
+                for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+                    if (w == null) continue;
+                    android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
+                    if (root == null || ownPackage.equals(root.getPackageName())) continue;
+                    collectSendCandidates(root, candidates);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        android.view.accessibility.AccessibilityNodeInfo best = chooseBestSendCandidate(candidates);
+        for (android.view.accessibility.AccessibilityNodeInfo n : candidates) {
+            if (n != best) { try { n.recycle(); } catch (Exception ignored) {} }
+        }
+        if (best == null) return false;
+
+        boolean ok = false;
+        try {
+            if (best.isEnabled()) {
+                ok = best.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
+                if (!ok && Build.VERSION.SDK_INT >= 21) {
+                    // Some WebView/browser nodes expose ACTION_CLICK in the action list
+                    // but don't report themselves as clickable.
+                    for (android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction a : best.getActionList()) {
+                        if (a.getId() == android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) {
+                            ok = best.performAction(a.getId());
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        try { best.recycle(); } catch (Exception ignored) {}
+        return ok;
+    }
+
+    private void collectSendCandidates(android.view.accessibility.AccessibilityNodeInfo node,
+                                       java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> out) {
+        if (node == null) return;
+        try {
+            if (isSendNode(node)) out.add(android.view.accessibility.AccessibilityNodeInfo.obtain(node));
+            for (int i = 0; i < node.getChildCount(); i++) {
+                android.view.accessibility.AccessibilityNodeInfo child = node.getChild(i);
+                if (child != null) {
+                    collectSendCandidates(child, out);
+                    try { child.recycle(); } catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private boolean isSendNode(android.view.accessibility.AccessibilityNodeInfo n) {
+        if (!n.isVisibleToUser() || !n.isEnabled()) return false;
+        String text = n.getText() == null ? "" : n.getText().toString().trim();
+        String desc = n.getContentDescription() == null ? "" : n.getContentDescription().toString().trim();
+        String viewId = n.getViewIdResourceName() == null ? "" : n.getViewIdResourceName();
+        String all = (text + " " + desc + " " + viewId).toLowerCase(java.util.Locale.ROOT);
+        if (all.isEmpty()) return false;
+
+        // Exact/near-exact labels used by ChatGPT and common web/app UIs.
+        boolean label =
+                all.equals("send") || all.equals("ارسال") ||
+                all.contains("send message") || all.contains("send prompt") ||
+                all.contains("send message") || all.contains("ارسال پیام") ||
+                all.contains("ارسال پیام") || all.contains("submit message");
+        if (!label) return false;
+
+        boolean actionClick = n.isClickable();
+        if (!actionClick && Build.VERSION.SDK_INT >= 21) {
+            for (android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction a : n.getActionList()) {
+                if (a.getId() == android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) {
+                    actionClick = true; break;
+                }
+            }
+        }
+        return actionClick;
+    }
+
+    private android.view.accessibility.AccessibilityNodeInfo chooseBestSendCandidate(
+            java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> list) {
+        if (list.isEmpty()) return null;
+        android.view.accessibility.AccessibilityNodeInfo best = null;
+        int bestScore = Integer.MIN_VALUE;
+        int h = screenH > 0 ? screenH : getResources().getDisplayMetrics().heightPixels;
+        for (android.view.accessibility.AccessibilityNodeInfo n : list) {
+            int score = 0;
+            String text = n.getText() == null ? "" : n.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+            String desc = n.getContentDescription() == null ? "" : n.getContentDescription().toString().trim().toLowerCase(java.util.Locale.ROOT);
+            if (text.equals("send") || text.equals("ارسال")) score += 100;
+            if (desc.contains("send prompt") || desc.contains("send message") || desc.contains("ارسال پیام")) score += 90;
+            if (n.isClickable()) score += 20;
+            android.graphics.Rect r = new android.graphics.Rect();
+            n.getBoundsInScreen(r);
+            // Send controls are normally in the lower input area. This is only a
+            // tie-breaker and never replaces label matching.
+            if (r.centerY() > h * 0.55f) score += 15;
+            if (r.width() > 0 && r.height() > 0) score += 5;
+            if (score > bestScore) { bestScore = score; best = n; }
+        }
+        return best;
+    }
+
     public static void resetFromKeyboard() {
         MouseAccessibilityService s = instance;
         if (s != null) s.resetCursor();
@@ -758,6 +815,7 @@ public class MouseAccessibilityService extends AccessibilityService {
     }
 
     private void click(boolean right) {
+        if (cursor == null) showCursor();
         if (cursor == null) return;
         float cx = x + 2f;
         float cy = y + 2f;
@@ -772,10 +830,18 @@ public class MouseAccessibilityService extends AccessibilityService {
         if (Build.VERSION.SDK_INT >= 24) {
             Path p = new Path();
             p.moveTo(cx, cy);
-            p.lineTo(cx + 1f, cy + 1f);
-            GestureDescription.StrokeDescription stroke =
-                new GestureDescription.StrokeDescription(p, 0, 70);
-            dispatchGesture(new GestureDescription.Builder().addStroke(stroke).build(), null, null);
+            if (right) {
+                // Compatibility fallback: a long press behaves like a context/right click
+                // for many Android and WebView controls.
+                GestureDescription.StrokeDescription stroke =
+                    new GestureDescription.StrokeDescription(p, 0, 650);
+                dispatchGesture(new GestureDescription.Builder().addStroke(stroke).build(), null, null);
+            } else {
+                p.lineTo(cx + 1f, cy + 1f);
+                GestureDescription.StrokeDescription stroke =
+                    new GestureDescription.StrokeDescription(p, 0, 70);
+                dispatchGesture(new GestureDescription.Builder().addStroke(stroke).build(), null, null);
+            }
         }
     }
 
@@ -786,9 +852,14 @@ public class MouseAccessibilityService extends AccessibilityService {
         android.view.accessibility.AccessibilityNodeInfo node = findNodeAt(root, px, py);
         if (node == null) return false;
         try {
-            if (right && Build.VERSION.SDK_INT >= 24 &&
-                node.getActionList().toString().contains("ACTION_CONTEXT_CLICK")) {
-                /* ACTION_CONTEXT_CLICK is not available in this compile SDK; use gesture fallback for right-click. */
+            if (right && Build.VERSION.SDK_INT >= 23) {
+                // Prefer the real Android context-click action for a right click.
+                try {
+                    if (node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CONTEXT_CLICK)) return true;
+                } catch (Throwable ignored) {}
+                try {
+                    if (node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_LONG_CLICK)) return true;
+                } catch (Throwable ignored) {}
             }
             if (node.isClickable() && node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)) return true;
             // Some browser controls expose ACTION_CLICK without reporting clickable.

@@ -1,0 +1,9 @@
+Fast Keyboard Nova v1.15
+
+- Quick Settings mouse window now uses the user's supplied reference image exactly as its visual base.
+- Transparent touch zones were added over the reference image; the visual layout itself was not redesigned.
+- Fixed mouse control actions: touchpad movement, Close, Drag, left click, both wheel controls, automatic movement, right click and Select.
+- Right click now prefers Android context-click/long-click and otherwise uses a long-press gesture.
+- Left/right click now ensure the cursor exists before attempting the action.
+- The single top-left resize grip remains aligned with the supplied reference.
+- Existing v1.14 real Send-button behavior is retained.
