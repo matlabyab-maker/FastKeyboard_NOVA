@@ -14,8 +14,11 @@ import android.view.ViewGroup;
 import android.view.Gravity;
 
 public class MainActivity extends Activity {
+    public static final String EXTRA_REQUEST_POINT_ZOOM_CAPTURE = "request_point_zoom_capture";
+    private static final int REQ_POINT_ZOOM_CAPTURE = 4318;
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
+        handlePointZoomRequest(getIntent());
 
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
@@ -71,5 +74,38 @@ public class MainActivity extends Activity {
         box.addView(picker, new LinearLayout.LayoutParams(-1, 64));
 
         setContentView(box);
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handlePointZoomRequest(intent);
+    }
+
+    private void handlePointZoomRequest(Intent intent) {
+        if (intent == null || !intent.getBooleanExtra(EXTRA_REQUEST_POINT_ZOOM_CAPTURE, false)) return;
+        try {
+            android.media.projection.MediaProjectionManager mpm =
+                    (android.media.projection.MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE);
+            startActivityForResult(mpm.createScreenCaptureIntent(), REQ_POINT_ZOOM_CAPTURE);
+        } catch (Exception ignored) {}
+        intent.removeExtra(EXTRA_REQUEST_POINT_ZOOM_CAPTURE);
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_POINT_ZOOM_CAPTURE) return;
+        if (resultCode == RESULT_OK && data != null) {
+            Intent s = new Intent(this, ScreenCaptureService.class);
+            s.putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode);
+            s.putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data);
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(s);
+                else startService(s);
+            } catch (Exception ignored) {}
+        } else {
+            try { MouseAccessibilityService.cancelPointZoom(); } catch (Exception ignored) {}
+        }
+        finish();
     }
 }

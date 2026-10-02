@@ -1,0 +1,9 @@
+Fast Keyboard Nova v1.38
+
+- Point Zoom is now a small physical 3 cm × 2 cm lens instead of full-screen magnification.
+- Android 10/API 29 and older use an explicit MediaProjection permission once, then the same small lens is fed from the captured display.
+- Android 11+ keeps the Accessibility screenshot path and uses the same 3 cm × 2 cm lens.
+- Point Zoom follows the mouse pointer continuously.
+- Accessibility services now listen for window-content changes and enhanced web accessibility, improving site File/Send discovery in browser/WebView UIs.
+- Mouse service now remembers the last non-FastKeyboard target package before scanning File/Send controls.
+- No generic Android file picker was added; File still activates the site's own attachment control.

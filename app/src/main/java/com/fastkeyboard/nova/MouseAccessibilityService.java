@@ -51,8 +51,10 @@ public class MouseAccessibilityService extends AccessibilityService {
     private Button autoTargetButton;
     private View magnifierView;
     private WindowManager.LayoutParams magnifierLp;
+    private Bitmap magnifierBitmap;
     private boolean magnifierEnabled=false;
     private boolean selectMode=false;
+    private String lastTargetPackage="";
     private int cursorSizeStep=1;
     private final int[] cursorSizeDp={30,42,58,76};
     private final java.util.ArrayList<Button> mouseButtons=new java.util.ArrayList<>();
@@ -362,57 +364,37 @@ public class MouseAccessibilityService extends AccessibilityService {
     private void toggleMagnifier() {
         if (magnifierEnabled) {
             magnifierEnabled = false;
-            try { getMagnificationController().reset(false); } catch (Exception ignored) {}
             hideMagnifier();
+            if (Build.VERSION.SDK_INT >= 24) {
+                try { getMagnificationController().reset(false); } catch (Exception ignored) {}
+            }
+            try {
+                stopService(new android.content.Intent(this, ScreenCaptureService.class));
+            } catch (Exception ignored) {}
             return;
         }
 
-        final float cx = x + cursorSize / 2f;
-        final float cy = y + cursorSize / 2f;
-        boolean enabled = false;
+        magnifierEnabled = true;
 
-        // Point Zoom must magnify the area around the pointer. On Android 10
-        // the public Accessibility magnification controller is the reliable
-        // mechanism for doing this; it does not zoom the application itself.
-        if (Build.VERSION.SDK_INT >= 24) {
-            try {
-                android.accessibilityservice.AccessibilityService.MagnificationController mc =
-                        getMagnificationController();
-                mc.setScale(2.5f, false);
-                mc.setCenter(cx, cy, false);
-                handler.postDelayed(() -> {
-                    try {
-                        if (magnifierEnabled) {
-                            mc.setScale(2.5f, false);
-                            mc.setCenter(x + cursorSize / 2f, y + cursorSize / 2f, false);
-                        }
-                    } catch (Exception ignored) {}
-                }, 120);
-                enabled = true;
-            } catch (Exception ignored) {}
+        // API 30+ can capture the display directly from AccessibilityService.
+        // Use our own small physical lens instead of Android's full-screen
+        // magnification so Point Zoom is always a small 3 cm x 2 cm window.
+        if (Build.VERSION.SDK_INT >= 30) {
+            updateMagnifier();
+            return;
         }
 
-        // Android 13+ fallback: use the system window magnifier if fullscreen
-        // magnification could not be controlled.
-        if (!enabled && Build.VERSION.SDK_INT >= 33) {
-            try {
-                android.accessibilityservice.MagnificationConfig cfg =
-                        new android.accessibilityservice.MagnificationConfig.Builder()
-                                .setMode(android.accessibilityservice.MagnificationConfig.MAGNIFICATION_MODE_WINDOW)
-                                .setScale(2.5f)
-                                .setCenterX(cx)
-                                .setCenterY(cy)
-                                .build();
-                enabled = getMagnificationController().setMagnificationConfig(cfg, false);
-            } catch (Exception ignored) {}
-        }
-
-        if (enabled) {
-            magnifierEnabled = true;
-        } else {
-            // Screenshot fallback is only possible on Android 11+.
-            magnifierEnabled = true;
-            if (Build.VERSION.SDK_INT >= 30) updateMagnifier();
+        // Android 10 (API 29) and older do not expose Accessibility screenshot
+        // capture. Ask the user once for MediaProjection permission; the capture
+        // service then feeds the same small 3 x 2 cm lens.
+        try {
+            android.content.Intent i = new android.content.Intent(this, MainActivity.class);
+            i.putExtra(MainActivity.EXTRA_REQUEST_POINT_ZOOM_CAPTURE, true);
+            i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK | android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(i);
+        } catch (Exception ignored) {
+            // Keep the state off if Android refuses to launch the permission UI.
+            magnifierEnabled = false;
         }
     }
 
@@ -432,15 +414,16 @@ public class MouseAccessibilityService extends AccessibilityService {
                         if(hw!=null){source=hw.copy(Bitmap.Config.ARGB_8888,false);hw.recycle();}
                     }
                     if(source==null)return;
-                    int radius=Math.max(36,Math.round(cursorSize*2.8f));
+                    int radiusX=Math.max(24, Math.round(physicalPx(12f,true)));
+                    int radiusY=Math.max(16, Math.round(physicalPx(8f,false)));
                     int cx=Math.max(0,Math.min(source.getWidth()-1,Math.round(x+cursorSize/2f)));
                     int cy=Math.max(0,Math.min(source.getHeight()-1,Math.round(y+cursorSize/2f)));
-                    int left=Math.max(0,Math.min(source.getWidth()-1,cx-radius));
-                    int top=Math.max(0,Math.min(source.getHeight()-1,cy-radius));
-                    int right=Math.min(source.getWidth(),left+radius*2);
-                    int bottom=Math.min(source.getHeight(),top+radius*2);
+                    int left=Math.max(0,Math.min(source.getWidth()-1,cx-radiusX));
+                    int top=Math.max(0,Math.min(source.getHeight()-1,cy-radiusY));
+                    int right=Math.min(source.getWidth(),left+radiusX*2);
+                    int bottom=Math.min(source.getHeight(),top+radiusY*2);
                     Bitmap crop=Bitmap.createBitmap(source,left,top,Math.max(1,right-left),Math.max(1,bottom-top));
-                    Bitmap scaled=Bitmap.createScaledBitmap(crop,dp(210),dp(210),true);
+                    Bitmap scaled=Bitmap.createScaledBitmap(crop,physicalPx(30f,true)-dp(2),physicalPx(20f,false)-dp(2),true);
                     crop.recycle();
                     Bitmap finalBitmap=scaled;
                     handler.post(()->showMagnifierBitmap(finalBitmap));
@@ -459,16 +442,21 @@ public class MouseAccessibilityService extends AccessibilityService {
         if(magnifierView==null){
             ImageView iv=new ImageView(this);
             GradientDrawable bg=new GradientDrawable();
-            bg.setColor(Color.WHITE); bg.setStroke(dp(2),Color.rgb(45,45,55)); bg.setCornerRadius(dp(8));
-            iv.setBackground(bg); iv.setPadding(dp(2),dp(2),dp(2),dp(2));
+            bg.setColor(Color.WHITE); bg.setStroke(dp(2),Color.rgb(45,45,55)); bg.setCornerRadius(dp(6));
+            iv.setBackground(bg); iv.setPadding(dp(1),dp(1),dp(1),dp(1));
             magnifierView=iv;
-            magnifierLp=new WindowManager.LayoutParams(dp(220),dp(220),WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            int lensW = physicalPx(30f, true);
+            int lensH = physicalPx(20f, false);
+            magnifierLp=new WindowManager.LayoutParams(lensW,lensH,WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE|WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT);
             magnifierLp.gravity=Gravity.TOP|Gravity.LEFT;
             try{wm.addView(magnifierView,magnifierLp);}catch(Exception ignored){magnifierView=null;return;}
         }
+        Bitmap old=magnifierBitmap;
+        magnifierBitmap=bitmap;
         ((ImageView)magnifierView).setImageBitmap(bitmap);
+        if(old!=null && old!=bitmap){ try{old.recycle();}catch(Exception ignored){} }
         // Keep the zoom lens centered on the pointer position. The source crop is
         // centered on the pointer, so this is a true point-zoom rather than a
         // general page/screen zoom.
@@ -482,6 +470,8 @@ public class MouseAccessibilityService extends AccessibilityService {
     private void hideMagnifier(){
         if(magnifierView!=null&&wm!=null){try{wm.removeView(magnifierView);}catch(Exception ignored){}}
         magnifierView=null;magnifierLp=null;
+        if(magnifierBitmap!=null){try{magnifierBitmap.recycle();}catch(Exception ignored){}}
+        magnifierBitmap=null;
     }
 
     private void addResizeHandle(FrameLayout panel, int gravity, int horizontalDir, int verticalDir) {
@@ -709,6 +699,13 @@ public class MouseAccessibilityService extends AccessibilityService {
         hideCursor();
     }
 
+    private int physicalPx(float mm, boolean horizontal) {
+        android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
+        float dpi=horizontal?dm.xdpi:dm.ydpi;
+        if(dpi<=0 || Float.isNaN(dpi) || Float.isInfinite(dpi)) dpi=dm.density*160f;
+        return Math.max(1, Math.round(mm*dpi/25.4f));
+    }
+
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
 
     private void hideCursor() {
@@ -750,6 +747,27 @@ public class MouseAccessibilityService extends AccessibilityService {
         int c = Color.rgb(10, 38, 92);
         int outline = Color.rgb(2, 12, 34);
         cursor.setCursorColors(c, outline);
+    }
+
+    public static float getPointZoomCenterX() {
+        MouseAccessibilityService s=instance;
+        return s==null ? -1f : s.x + s.cursorSize/2f;
+    }
+
+    public static float getPointZoomCenterY() {
+        MouseAccessibilityService s=instance;
+        return s==null ? -1f : s.y + s.cursorSize/2f;
+    }
+
+    public static void pushPointZoomBitmap(Bitmap bitmap) {
+        MouseAccessibilityService s=instance;
+        if (s==null || bitmap==null) { if(bitmap!=null) bitmap.recycle(); return; }
+        s.handler.post(() -> s.showMagnifierBitmap(bitmap));
+    }
+
+    public static void cancelPointZoom() {
+        MouseAccessibilityService s=instance;
+        if(s!=null){ s.magnifierEnabled=false; s.hideMagnifier(); }
     }
 
     public static void moveRelativeFromKeyboard(float dx, float dy) {
@@ -800,7 +818,7 @@ public class MouseAccessibilityService extends AccessibilityService {
 
     private java.util.ArrayList<AccessibilityNodeInfo> targetRoots() {
         java.util.ArrayList<AccessibilityNodeInfo> all = new java.util.ArrayList<>();
-        String own = getPackageName(); String fg = getForegroundPackageFromUsage();
+        String own = getPackageName(); String fg = lastTargetPackage.isEmpty() ? getForegroundPackageFromUsage() : lastTargetPackage;
         try {
             AccessibilityNodeInfo active = getRootInActiveWindow();
             if (active != null && !own.equals(active.getPackageName())) all.add(active);
@@ -883,17 +901,25 @@ public class MouseAccessibilityService extends AccessibilityService {
         for (android.view.accessibility.AccessibilityNodeInfo root : roots2) findComposerBounds(root, composer);
         for (android.view.accessibility.AccessibilityNodeInfo root : roots2) try { root.recycle(); } catch (Exception ignored) {}
         if (composer.width() > 40 && composer.height() > 20) {
-            // The site's attachment control is normally inside the lower-left
-            // edge of the composer. The previous version tapped outside the
-            // composer, so the site's button was missed.
-            float x = composer.left + Math.max(20f, Math.min(46f, composer.height() * 0.55f));
-            float y = composer.bottom - Math.max(18f, Math.min(40f, composer.height() * 0.32f));
+            float x = composer.left + Math.max(20f, Math.min(64f, composer.height() * 0.70f));
+            float y = composer.bottom - Math.max(18f, Math.min(52f, composer.height() * 0.36f));
             boolean tapped = tapScreenPoint(x, y);
             if (tapped) {
-                handler.postDelayed(() -> tapScreenPoint(x + 18f, y), 180);
+                handler.postDelayed(() -> tapScreenPoint(x + 18f, y), 120);
+                handler.postDelayed(() -> tapScreenPoint(x + 34f, y), 240);
                 scheduleFileMenuClicks();
                 handler.postDelayed(this::clickFileMenuItem, 1900);
             }
+            return tapped;
+        }
+        Rect area=findTargetScreenBounds();
+        if(area.width()>160 && area.height()>120){
+            float x=area.left+Math.max(24f,Math.min(64f,area.width()*0.09f));
+            float y=area.bottom-Math.max(28f,Math.min(58f,area.height()*0.065f));
+            boolean tapped=tapScreenPoint(x,y);
+            handler.postDelayed(() -> tapScreenPoint(x+18f,y),120);
+            handler.postDelayed(() -> tapScreenPoint(x+34f,y),240);
+            scheduleFileMenuClicks();
             return tapped;
         }
         return false;
@@ -1037,7 +1063,18 @@ public class MouseAccessibilityService extends AccessibilityService {
         java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> roots2 = targetRoots();
         for (android.view.accessibility.AccessibilityNodeInfo root : roots2) findComposerBounds(root, composer);
         for (android.view.accessibility.AccessibilityNodeInfo root : roots2) try { root.recycle(); } catch (Exception ignored) {}
-        if (composer.width() <= 40 || composer.height() <= 20) return false;
+        if (composer.width() <= 40 || composer.height() <= 20) {
+            Rect area=findTargetScreenBounds();
+            if(area.width()>160 && area.height()>120){
+                float bx=area.right-Math.max(28f,Math.min(64f,area.width()*0.09f));
+                float by=area.bottom-Math.max(28f,Math.min(58f,area.height()*0.065f));
+                boolean t=tapScreenPoint(bx,by);
+                handler.postDelayed(() -> tapScreenPoint(bx-16f,by),120);
+                handler.postDelayed(() -> tapScreenPoint(bx-30f,by),240);
+                return t;
+            }
+            return false;
+        }
         boolean tapped = tapComposerSendFallback(null, composer);
         if (tapped) {
             android.graphics.Rect c = new android.graphics.Rect(composer);
@@ -1113,6 +1150,28 @@ public class MouseAccessibilityService extends AccessibilityService {
             }
         } catch(Exception ignored){}
         return bestScore>-9000?best:null;
+    }
+
+    private Rect findTargetScreenBounds() {
+        Rect out=new Rect();
+        try {
+            for (AccessibilityWindowInfo w : getWindows()) {
+                if(w==null) continue;
+                AccessibilityNodeInfo r=w.getRoot();
+                if(r==null) continue;
+                String pkg=r.getPackageName()==null?"":r.getPackageName().toString();
+                boolean own=getPackageName().equals(pkg);
+                if(!own && (lastTargetPackage.isEmpty() || lastTargetPackage.equals(pkg))){
+                    Rect b=new Rect(); w.getBoundsInScreen(b);
+                    if(b.width()>out.width() && b.height()>out.height()) out.set(b);
+                }
+                try{r.recycle();}catch(Exception ignored){}
+            }
+        }catch(Exception ignored){}
+        if(out.width()<=0 || out.height()<=0){
+            out.set(0,0,screenW,screenH);
+        }
+        return out;
     }
 
     private boolean tapScreenPoint(float x,float y){
@@ -1265,16 +1324,8 @@ public class MouseAccessibilityService extends AccessibilityService {
         lp.y = Math.round(y);
         wm.updateViewLayout(cursor, lp);
         if (autoTargetMode && !dragMode) snapToNearbyClickable();
-        if (magnifierEnabled) {
-            boolean moved = false;
-            if (Build.VERSION.SDK_INT >= 24) {
-                try {
-                    getMagnificationController().setCenter(
-                            x + cursorSize / 2f, y + cursorSize / 2f, false);
-                    moved = true;
-                } catch (Exception ignored) {}
-            }
-            if (!moved && Build.VERSION.SDK_INT >= 30) updateMagnifier();
+        if (magnifierEnabled && Build.VERSION.SDK_INT >= 30) {
+            updateMagnifier();
         }
         if(dragMode && Build.VERSION.SDK_INT>=24){
             dispatchSwipe(oldX+3f,oldY+3f,x+3f,y+3f,12);
@@ -1375,7 +1426,15 @@ public class MouseAccessibilityService extends AccessibilityService {
         return android.view.accessibility.AccessibilityNodeInfo.obtain(node);
     }
 
-    @Override public void onAccessibilityEvent(AccessibilityEvent event) { }
+    @Override public void onAccessibilityEvent(AccessibilityEvent event) {
+        try {
+            CharSequence pkg = event == null ? null : event.getPackageName();
+            if (pkg != null) {
+                String p = pkg.toString();
+                if (!getPackageName().equals(p)) lastTargetPackage = p;
+            }
+        } catch (Exception ignored) {}
+    }
     @Override public void onInterrupt() { }
 
     @Override public void onDestroy() {

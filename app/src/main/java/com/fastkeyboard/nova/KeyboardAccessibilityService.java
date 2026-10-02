@@ -134,18 +134,30 @@ public class KeyboardAccessibilityService extends AccessibilityService {
             }
         }
         if (composer.width() > 80 && composer.height() > 20) {
-            // The site's attachment button is normally the first control inside
-            // the lower-left edge of the composer. Try a small cluster rather
-            // than assuming one exact pixel.
-            float baseX = composer.left + Math.max(18, Math.min(52, composer.height() * 0.58f));
-            float baseY = composer.bottom - Math.max(16, Math.min(44, composer.height() * 0.34f));
+            float baseX = composer.left + Math.max(18, Math.min(64, composer.height() * 0.70f));
+            float baseY = composer.bottom - Math.max(16, Math.min(52, composer.height() * 0.36f));
             boolean tapped = tapScreenPoint(baseX, baseY);
-            handler.postDelayed(() -> tapScreenPoint(baseX + 12, baseY), 120);
-            handler.postDelayed(() -> tapScreenPoint(baseX + 24, baseY), 240);
-            handler.postDelayed(this::clickFileMenuItem, 360);
-            handler.postDelayed(this::clickFileMenuItem, 700);
-            handler.postDelayed(this::clickFileMenuItem, 1100);
-            handler.postDelayed(this::clickFileMenuItem, 1500);
+            handler.postDelayed(() -> tapScreenPoint(baseX + 14, baseY), 120);
+            handler.postDelayed(() -> tapScreenPoint(baseX + 28, baseY), 240);
+            handler.postDelayed(this::clickFileMenuItem, 320);
+            handler.postDelayed(this::clickFileMenuItem, 650);
+            handler.postDelayed(this::clickFileMenuItem, 1000);
+            handler.postDelayed(this::clickFileMenuItem, 1450);
+            return tapped;
+        }
+        // Last resort for WebViews that expose neither the attachment node nor
+        // an editable composer: use the lower-left control position of the
+        // active site window. This still taps the site's own UI.
+        Rect area=findTargetScreenBounds();
+        if(area.width()>160 && area.height()>120){
+            float baseX=area.left+Math.max(24,Math.min(64,area.width()*0.09f));
+            float baseY=area.bottom-Math.max(28,Math.min(58,area.height()*0.065f));
+            boolean tapped=tapScreenPoint(baseX,baseY);
+            handler.postDelayed(() -> tapScreenPoint(baseX+18,baseY),120);
+            handler.postDelayed(() -> tapScreenPoint(baseX+34,baseY),240);
+            handler.postDelayed(this::clickFileMenuItem,350);
+            handler.postDelayed(this::clickFileMenuItem,750);
+            handler.postDelayed(this::clickFileMenuItem,1200);
             return tapped;
         }
         return false;
@@ -350,6 +362,25 @@ public class KeyboardAccessibilityService extends AccessibilityService {
 
     private boolean performClick(AccessibilityNodeInfo n){
         try{if(!n.isEnabled())return false;if(n.performAction(AccessibilityNodeInfo.ACTION_CLICK))return true;for(AccessibilityNodeInfo.AccessibilityAction a:n.getActionList())if(a.getId()==AccessibilityNodeInfo.ACTION_CLICK&&n.performAction(a.getId()))return true;}catch(Exception ignored){}return false;
+    }
+
+    private Rect findTargetScreenBounds() {
+        Rect out=new Rect();
+        try {
+            for (AccessibilityWindowInfo w : getWindows()) {
+                if(w==null) continue;
+                AccessibilityNodeInfo r=w.getRoot();
+                if(r==null) continue;
+                String pkg=r.getPackageName()==null?"":r.getPackageName().toString();
+                if(getPackageName().equals(pkg)) { try{r.recycle();}catch(Exception ignored){} continue; }
+                if(!lastTargetPackage.isEmpty() && !lastTargetPackage.equals(pkg)) { try{r.recycle();}catch(Exception ignored){} continue; }
+                Rect b=new Rect(); w.getBoundsInScreen(b);
+                if(b.width()>out.width() && b.height()>out.height()) out.set(b);
+                try{r.recycle();}catch(Exception ignored){}
+            }
+        } catch(Exception ignored) {}
+        if(out.width()<=0 || out.height()<=0) out.set(0,0,getResources().getDisplayMetrics().widthPixels,getResources().getDisplayMetrics().heightPixels);
+        return out;
     }
 
     private boolean tapScreenPoint(float x,float y){
