@@ -1,0 +1,13 @@
+FastKeyboard_NOVA v1.16
+
+اصلاح خطای Build نسخه v1.15 بر اساس logs_100139145850.zip.
+
+خطای اصلی:
+MouseAccessibilityService.java:858
+cannot find symbol: ACTION_CONTEXT_CLICK
+
+اصلاح:
+وابستگی مستقیم به ACTION_CONTEXT_CLICK حذف شد تا پروژه با SDK مورد استفاده GitHub Actions کامپایل شود.
+کلیک راست همچنان از ACTION_LONG_CLICK به عنوان مسیر سازگار استفاده می‌کند.
+
+سایر بخش‌های v1.15، از جمله تصویر مرجع موس و نواحی لمسی آن، بدون تغییر نگه داشته شدند.

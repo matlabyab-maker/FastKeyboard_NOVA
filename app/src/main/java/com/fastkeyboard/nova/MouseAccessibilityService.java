@@ -619,6 +619,135 @@ public class MouseAccessibilityService extends AccessibilityService {
         return s != null && s.clickSendButton();
     }
 
+    /**
+     * Click the active application's accessible file/attachment button.
+     * The site's own handler then opens its normal Android file chooser/storage explorer.
+     */
+    public static boolean clickFileButtonFromKeyboard() {
+        MouseAccessibilityService s = instance;
+        return s != null && s.clickFileButton();
+    }
+
+    private boolean clickFileButton() {
+        if (Build.VERSION.SDK_INT < 21) return false;
+
+        final String ownPackage = getPackageName();
+        java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> candidates =
+                new java.util.ArrayList<>();
+
+        android.view.accessibility.AccessibilityNodeInfo active = getRootInActiveWindow();
+        if (active != null && !ownPackage.equals(active.getPackageName())) {
+            collectFileCandidates(active, candidates);
+        }
+        if (candidates.isEmpty()) {
+            try {
+                for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+                    if (w == null) continue;
+                    android.view.accessibility.AccessibilityNodeInfo root = w.getRoot();
+                    if (root == null || ownPackage.equals(root.getPackageName())) continue;
+                    collectFileCandidates(root, candidates);
+                }
+            } catch (Exception ignored) {}
+        }
+
+        android.view.accessibility.AccessibilityNodeInfo best = chooseBestFileCandidate(candidates);
+        for (android.view.accessibility.AccessibilityNodeInfo n : candidates) {
+            if (n != best) { try { n.recycle(); } catch (Exception ignored) {} }
+        }
+        if (best == null) return false;
+
+        boolean ok = false;
+        try {
+            if (best.isEnabled()) {
+                ok = best.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
+                if (!ok) {
+                    for (android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction a : best.getActionList()) {
+                        if (a.getId() == android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) {
+                            ok = best.performAction(a.getId());
+                            break;
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        try { best.recycle(); } catch (Exception ignored) {}
+        return ok;
+    }
+
+    private void collectFileCandidates(android.view.accessibility.AccessibilityNodeInfo node,
+                                       java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> out) {
+        if (node == null) return;
+        try {
+            if (isFileNode(node)) out.add(android.view.accessibility.AccessibilityNodeInfo.obtain(node));
+            for (int i = 0; i < node.getChildCount(); i++) {
+                android.view.accessibility.AccessibilityNodeInfo child = node.getChild(i);
+                if (child != null) {
+                    collectFileCandidates(child, out);
+                    try { child.recycle(); } catch (Exception ignored) {}
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private boolean isFileNode(android.view.accessibility.AccessibilityNodeInfo n) {
+        if (!n.isVisibleToUser() || !n.isEnabled()) return false;
+        String text = n.getText() == null ? "" : n.getText().toString().trim();
+        String desc = n.getContentDescription() == null ? "" : n.getContentDescription().toString().trim();
+        String viewId = n.getViewIdResourceName() == null ? "" : n.getViewIdResourceName();
+        String all = (text + " " + desc + " " + viewId).toLowerCase(java.util.Locale.ROOT);
+        if (all.isEmpty()) return false;
+
+        boolean label =
+                all.contains("attach files") || all.contains("attach file") ||
+                all.contains("add files") || all.contains("add file") ||
+                all.contains("upload files") || all.contains("upload file") ||
+                all.contains("choose file") || all.contains("select file") ||
+                all.contains("انتخاب فایل") || all.contains("افزودن فایل") ||
+                all.contains("ضمیمه") || all.contains("پیوست") || all.contains("بارگذاری فایل");
+        boolean idHint =
+                all.contains("attach") || all.contains("attachment") ||
+                all.contains("file-upload") || all.contains("file_upload") ||
+                all.contains("upload-file") || all.contains("upload_file");
+        if (!label && !idHint) return false;
+
+        boolean actionClick = n.isClickable();
+        if (!actionClick) {
+            for (android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction a : n.getActionList()) {
+                if (a.getId() == android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK) {
+                    actionClick = true; break;
+                }
+            }
+        }
+        return actionClick;
+    }
+
+    private android.view.accessibility.AccessibilityNodeInfo chooseBestFileCandidate(
+            java.util.ArrayList<android.view.accessibility.AccessibilityNodeInfo> list) {
+        if (list.isEmpty()) return null;
+        android.view.accessibility.AccessibilityNodeInfo best = null;
+        int bestScore = Integer.MIN_VALUE;
+        int h = screenH > 0 ? screenH : getResources().getDisplayMetrics().heightPixels;
+        for (android.view.accessibility.AccessibilityNodeInfo n : list) {
+            int score = 0;
+            String text = n.getText() == null ? "" : n.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+            String desc = n.getContentDescription() == null ? "" : n.getContentDescription().toString().trim().toLowerCase(java.util.Locale.ROOT);
+            String id = n.getViewIdResourceName() == null ? "" : n.getViewIdResourceName().toLowerCase(java.util.Locale.ROOT);
+            if (desc.contains("attach files") || desc.contains("attach file")) score += 120;
+            if (text.contains("انتخاب فایل") || desc.contains("انتخاب فایل")) score += 115;
+            if (desc.contains("add files") || desc.contains("add file")) score += 110;
+            if (desc.contains("upload files") || desc.contains("upload file")) score += 100;
+            if (id.contains("attach") || id.contains("attachment") || id.contains("file-upload") || id.contains("file_upload")) score += 80;
+            if (n.isClickable()) score += 20;
+            android.graphics.Rect r = new android.graphics.Rect();
+            n.getBoundsInScreen(r);
+            // Attachment controls are normally near the lower message composer.
+            if (r.centerY() > h * 0.55f) score += 15;
+            if (r.width() > 0 && r.height() > 0) score += 5;
+            if (score > bestScore) { bestScore = score; best = n; }
+        }
+        return best;
+    }
+
     private boolean clickSendButton() {
         if (Build.VERSION.SDK_INT < 21) return false;
 
@@ -855,9 +984,7 @@ public class MouseAccessibilityService extends AccessibilityService {
             if (right && Build.VERSION.SDK_INT >= 23) {
                 // Prefer the real Android context-click action for a right click.
                 try {
-                    if (node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CONTEXT_CLICK)) return true;
-                } catch (Throwable ignored) {}
-                try {
+                    // Some SDK/API combinations do not expose ACTION_CONTEXT_CLICK; use long-click fallback.
                     if (node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_LONG_CLICK)) return true;
                 } catch (Throwable ignored) {}
             }
