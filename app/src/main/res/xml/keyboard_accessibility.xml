@@ -6,7 +6,6 @@
     android:accessibilityFlags="flagRetrieveInteractiveWindows|flagReportViewIds|flagIncludeNotImportantViews"
     android:notificationTimeout="50"
     android:canRetrieveWindowContent="true"
-    android:canTakeScreenshot="true"
     android:canPerformGestures="true"
-    android:description="@string/mouse_accessibility_description"
+    android:description="@string/keyboard_accessibility_description"
     android:settingsActivity="com.fastkeyboard.nova.MainActivity" />

@@ -272,9 +272,10 @@ public class FastKeyboardService extends InputMethodService {
         // This button is intentionally NOT an Enter/IME action.
         // It is meant to activate the visible blue Send button of the active app
         // (for example ChatGPT in a browser) through the AccessibilityService.
-        boolean handled = MouseAccessibilityService.clickSendButtonFromKeyboard();
+        boolean handled = KeyboardAccessibilityService.clickSendButtonFromKeyboard();
+        if(!handled) handled = MouseAccessibilityService.clickSendButtonFromKeyboard();
         if(!handled){
-            android.widget.Toast.makeText(this, "برای ارسال واقعی، «موس سیستمی» را در تنظیمات Android فعال کنید.", android.widget.Toast.LENGTH_SHORT).show();
+            android.widget.Toast.makeText(this, "برای ارسال واقعی، «سرویس Accessibility کیبورد» را در تنظیمات Android فعال کنید.", android.widget.Toast.LENGTH_SHORT).show();
         }
         scheduleSuggestions();
     }
@@ -283,7 +284,8 @@ public class FastKeyboardService extends InputMethodService {
         // Do NOT launch Android's generic file chooser here. The required
         // behavior is to click the active site's own attachment/file button,
         // letting that site open its own picker and continue the upload flow.
-        boolean handled = MouseAccessibilityService.clickFileButtonFromKeyboard();
+        boolean handled = KeyboardAccessibilityService.clickFileButtonFromKeyboard();
+        if(!handled) handled = MouseAccessibilityService.clickFileButtonFromKeyboard();
         if(!handled){
             android.widget.Toast.makeText(this,
                     "دکمه انتخاب فایل سایت پیدا نشد؛ Accessibility را فعال کنید.",

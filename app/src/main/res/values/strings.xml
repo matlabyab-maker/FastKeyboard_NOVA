@@ -2,4 +2,5 @@
     <string name="app_name">Fast Keyboard Nova</string>
     <string name="mouse_accessibility_description">موس سیستمی Fast Keyboard Nova برای حرکت نشانگر، کلیک، انتخاب فایل و ارسال</string>
     <string name="subtype_persian">فارسی</string>
+    <string name="keyboard_accessibility_description">Fast Keyboard Nova برای فعال‌سازی دکمه‌های ارسال و فایل در برنامه یا سایت فعال</string>
 </resources>
