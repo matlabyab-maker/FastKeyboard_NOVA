@@ -320,7 +320,8 @@ public class MouseAccessibilityService extends AccessibilityService {
         if(!magnifierEnabled || Build.VERSION.SDK_INT<30) return;
         try {
             Executor ex = command -> handler.post(command);
-            takeScreenshot(Display.DEFAULT_DISPLAY, ex, result -> {
+            takeScreenshot(Display.DEFAULT_DISPLAY, ex, new TakeScreenshotCallback() {
+                @Override public void onSuccess(ScreenshotResult result) {
                 HardwareBuffer hb=null;
                 Bitmap source=null;
                 try {
@@ -347,6 +348,8 @@ public class MouseAccessibilityService extends AccessibilityService {
                     if(source!=null)source.recycle();
                     if(hb!=null)hb.close();
                 }
+                }
+                @Override public void onFailure(int errorCode) { }
             });
         } catch(Exception ignored) {}
     }

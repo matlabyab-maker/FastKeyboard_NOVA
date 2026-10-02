@@ -1,0 +1,1 @@
+FKP/NOVA v1.2\nFix: AccessibilityService TakeScreenshotCallback now uses explicit onSuccess/onFailure implementation instead of lambda.\nNo functional UI changes.\n
