@@ -1,0 +1,4 @@
+FastKeyboard_NOVA v1.39
+
+- Fixed GitHub Actions build failure: added missing Rect and AccessibilityWindowInfo imports to MouseAccessibilityService.java.
+- No keyboard layout changes.

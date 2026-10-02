@@ -4,6 +4,8 @@ import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.GestureDescription;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.graphics.Color;
+import android.graphics.Rect;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ColorSpace;
