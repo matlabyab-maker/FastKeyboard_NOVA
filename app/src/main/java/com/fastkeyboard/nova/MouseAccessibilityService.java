@@ -226,7 +226,7 @@ public class MouseAccessibilityService extends AccessibilityService {
         select.setBackgroundColor(LIGHT_YELLOW);
         row.addView(left,new LinearLayout.LayoutParams(0,58,2.1f));
         row.addView(pointerSize,new LinearLayout.LayoutParams(0,58,.58f));
-        row.addView(auto,new LinearLayout.LayoutParams(0,58,1.0f));
+        row.addView(auto,new LinearLayout.LayoutParams(0,58,2.0f));
         row.addView(magnify,new LinearLayout.LayoutParams(0,58,.58f));
         row.addView(right,new LinearLayout.LayoutParams(0,58,2.1f));
         row.addView(select,new LinearLayout.LayoutParams(0,58,1.25f));
