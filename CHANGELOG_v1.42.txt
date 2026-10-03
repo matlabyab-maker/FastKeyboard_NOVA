@@ -1,0 +1,5 @@
+FastKeyboard_NOVA v1.42
+
+- Fixed the Java compilation failure in MouseAccessibilityService.
+- Restored recycleRootsExcept() inside MouseAccessibilityService, where it is used by the file-attachment and send-button accessibility fallbacks.
+- No keyboard layout or mouse-panel design changes.

@@ -58,6 +58,10 @@ public class MouseAccessibilityService extends AccessibilityService {
     private boolean magnifierCapturePending=false;
     private long lastMagnifierCaptureMs=0L;
     private boolean selectMode=false;
+    private boolean selectionGestureActive=false;
+    private float selectionStartX=0f, selectionStartY=0f;
+    private long lastPadTapMs=0L;
+    private float lastPadTapX=0f, lastPadTapY=0f;
     private String lastTargetPackage="";
     private int cursorSizeStep=1;
     private final int[] cursorSizeDp={30,42,58,76};
@@ -188,7 +192,22 @@ public class MouseAccessibilityService extends AccessibilityService {
         final boolean[] padMoving = {false};
         touchPad.setOnTouchListener((v,e)->{
             if (e.getAction()==MotionEvent.ACTION_DOWN) {
-                padLast[0]=e.getRawX(); padLast[1]=e.getRawY(); padMoving[0]=true; return true;
+                long now = System.currentTimeMillis();
+                float tx=e.getRawX(), ty=e.getRawY();
+                boolean secondTapHeld = (now-lastPadTapMs) <= 420L &&
+                        Math.hypot(tx-lastPadTapX, ty-lastPadTapY) <= dp(28);
+                padLast[0]=tx; padLast[1]=ty; padMoving[0]=true;
+                if (secondTapHeld) {
+                    selectionGestureActive=true;
+                    selectionStartX=x+3f; selectionStartY=y+3f;
+                    // The second tap is deliberately held: movement now describes
+                    // the selection range instead of a normal pointer move.
+                    releaseSnap();
+                } else {
+                    selectionGestureActive=false;
+                }
+                lastPadTapMs=now; lastPadTapX=tx; lastPadTapY=ty;
+                return true;
             }
             if (e.getAction()==MotionEvent.ACTION_MOVE && padMoving[0]) {
                 float dx=e.getRawX()-padLast[0], dy=e.getRawY()-padLast[1];
@@ -199,6 +218,17 @@ public class MouseAccessibilityService extends AccessibilityService {
                 return true;
             }
             if (e.getAction()==MotionEvent.ACTION_UP || e.getAction()==MotionEvent.ACTION_CANCEL) {
+                if (selectionGestureActive) {
+                    float endX=x+3f, endY=y+3f;
+                    if (e.getAction()==MotionEvent.ACTION_UP &&
+                            (Math.abs(endX-selectionStartX)>=4f || Math.abs(endY-selectionStartY)>=4f)) {
+                        // Reproduce a real press-and-drag on the underlying app.
+                        // This is the Android-compatible way to make editable text
+                        // and selectable lists honour the dragged selection range.
+                        dispatchSwipe(selectionStartX, selectionStartY, endX, endY, 650L);
+                    }
+                    selectionGestureActive=false;
+                }
                 padMoving[0]=false; return true;
             }
             return true;
@@ -1527,6 +1557,15 @@ public class MouseAccessibilityService extends AccessibilityService {
         return android.view.accessibility.AccessibilityNodeInfo.obtain(node);
     }
 
+    /** Recycles accessibility roots except for the node selected for the pending action. */
+    private void recycleRootsExcept(ArrayList<AccessibilityNodeInfo> roots, AccessibilityNodeInfo keep) {
+        for (AccessibilityNodeInfo r : roots) {
+            if (r != null && r != keep) {
+                try { r.recycle(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
         try {
             CharSequence pkg = event == null ? null : event.getPackageName();
@@ -1552,6 +1591,3 @@ public class MouseAccessibilityService extends AccessibilityService {
     }
 }
 
-    private void recycleRootsExcept(ArrayList<AccessibilityNodeInfo> roots, AccessibilityNodeInfo keep) {
-        for (AccessibilityNodeInfo r : roots) { if (r != null && r != keep) try { r.recycle(); } catch(Exception ignored) {} }
-    }
